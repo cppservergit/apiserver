@@ -25,11 +25,32 @@ __Note__: You can use GCC-13 too if you have it installed, for Ubuntu 23.04 and 
 
 ### PostgreSQL testdb setup
 
-Please restore this backup in your PostgreSQL server, this contains a sample schema with several tables to exercise different kinds of APIs and run the Demo WebApp frontend, also contains the minimal security tables to support a SQL-based login mechanism behind our JWT (JSON web token) implementation.
-
+Download TestDB backup:
 ```
 curl https://cppserver.com/files/apiserver/testdb.backup -O
 ```
+
+Please restore this backup in your PostgreSQL server, this database contains a sample schema with several tables to exercise different kinds of APIs, it also contains the minimal security tables and the stored procedure `cpp_dblogin` to support an SQL-based login mechanism, so you can test API-Server++ JWT (JSON web token) implementation.
+
+#### Using PostgreSQL as a docker container
+
+If you have a VM with docker, you can quickly install PostgreSQL using this command, change the password if you want but take care to use your new password in the commands following below:
+```
+sudo docker run --restart unless-stopped --name pgsql --network host -e POSTGRES_PASSWORD=basica -d postgres:latest
+```
+The command above will create a container named `pgsql`, and the `postgres` user password will be `basica`.
+
+If you are using PostgreSQL as a docker container, you can use this command to create TestDB and then restore the backup, change host and password to meet your settings:
+```
+sudo docker exec -e PG_PASSWORD=basica pgsql psql -h localhost -U postgres -c 'create database testdb;'
+```
+
+Restore:
+```
+cat testdb.backup | sudo docker exec -i -e PG_PASSWORD=basica pgsql pg_restore -d testdb -h localhost -U postgres
+```
+
+Take note of your PostgreSQL hostname or IP address, you will need it to configure the script used to run API-Server++.
 
 ## Build
 
