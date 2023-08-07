@@ -1,0 +1,29 @@
+#!/bin/bash
+export CPP_LOGIN_LOG=1
+export CPP_HTTP_LOG=1
+export CPP_PORT=8080
+export CPP_POOL_SIZE=4
+# default paths
+export CPP_MAIL_TEMPLATES="/var/mail"
+export CPP_BLOB_STORAGE="/var/blobs"
+# JWT config
+export CPP_JWT_PASSWORD="basica"
+export CPP_JWT_EXP=600
+# PGSQL authenticator config
+export CPP_LOGINDB="host=demodb.mshome.net port=5432 dbname=testdb connect_timeout=10 user=postgres password=basica application_name=CPPServer"
+# PGSQL data sources
+export DB1="host=demodb.mshome.net port=5432 dbname=testdb connect_timeout=10 user=postgres password=basica application_name=CPPServer"
+# secure mail config
+export CPP_MAIL_SERVER="smtp://smtp.gmail.com:587"
+export CPP_MAIL_USER="admin@martincordova.com"
+export CPP_MAIL_PWD="your-smtp-password"
+# LDAP authenticator config
+export CPP_LDAP_URL="ldap://demodb.mshome.net:1389/"
+export CPP_LDAP_ADMIN_USER_DN="cn=admin,dc=example,dc=org"
+export CPP_LDAP_ADMIN_PWD="basica"
+export CPP_LDAP_USER_DN="cn={userid},ou=users,dc=example,dc=org"
+export CPP_LDAP_USER_BASE="ou=users,dc=example,dc=org"
+export CPP_LDAP_USERGROUPS_BASE="ou=users,dc=example,dc=org"
+export CPP_LDAP_USER_FILTER="(userid={userid})"
+export CPP_LDAP_USERGROUPS_FILTER="(member={dn})"
+./apiserver
