@@ -2,7 +2,7 @@
 
 namespace
 {
-	constexpr char SERVER_VERSION[] = "microserver-pgsql v1.0.0";
+	constexpr char SERVER_VERSION[] = "API-Server++ v1.0.0";
 	const std::string LOGGER_SRC {"server"};
 	const int m_max_age {600};
 
