@@ -1,6 +1,30 @@
 # API-Server++
 
-Easy to build Web APIs with Modern C++ and a minimal code framework.
+Easy to build Web APIs with Modern C++ and a minimal code framework and imperative/functional programming style.
+
+```
+#include "server.h"
+
+int main()
+{
+	server::register_webapi
+	(
+		server::webapi_path("/api/shippers/view"), 
+		"List of shipping companies",
+		http::verb::GET, 
+		{} /* inputs */, 	
+		{} /* roles */,
+		[](http::request& req) 
+		{
+			req.response.set_body( sql::get_json_response("DB1", "select * from fn_shipper_view()") );
+		}
+	);
+
+	server::start();
+}
+```
+
+API-Server++ is a compact single-threaded epoll HTTP 1/1 microserver, for serving API requests only (GET/Multipart Form POST/OPTIONS), when a request arrives, the corresponding lambda will be dispatched for execution to a background thread, using the one-producer/many-consumers model.
 
 ## Requirements
 
