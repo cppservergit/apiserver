@@ -24,6 +24,20 @@ int main()
 }
 ```
 
+This is the declaration of the utility function used to register an API, shown above:
+```
+	void register_webapi(
+		const webapi_path& _path, 
+		const std::string& _description, 
+		http::verb _verb, 
+		const std::vector<http::input_rule>& _rules, 
+		const std::vector<std::string>& _roles, 
+		std::function<void(http::request&)> _fn,
+		bool _is_secure = true
+	);
+```
+You can specify input rules (input parameters, optional), authorized roles (optional), and your lambda function, which most of the time will be very simple, but it can also incorporate additional validations.
+
 API-Server++ is a compact single-threaded epoll HTTP 1/1 microserver, for serving API requests only (GET/Multipart Form POST/OPTIONS), when a request arrives, the corresponding lambda will be dispatched for execution to a background thread, using the one-producer/many-consumers model. This way API-Server++ can multiplex thousands of concurrent connections with a single thread dispatching all the network-related tasks. API-Server++ is an async, non-blocking, event-oriented server, async because of the way the tasks are dispatched, it returns immediately to keep processing network events, while a background thread picks the task and executes it. The kernel will notify the program when there are events to process, in which case, non-blocking operations will be used on the sockets, and the program won't consume CPU while waiting for events, this way a single-threaded server can serve thousands of concurrent clients if the I/O tasks are fast. The size of the workers' thread pool can be configured via environment variable, the default is 4, which has proved to be good enough for high loads on VMs with 4-6 virtual cores.
 
 API-Server++ was designed to be run as a container on Kubernetes, with a stateless security/session model based on JSON web token (good for scalability), and built-in observability features for Grafana stack, but it can be run as a regular program on a terminal or as a SystemD Linux service, on production it will run behind an Ingress or Load Balancer providing TLS and Layer-7 protection.
@@ -662,3 +676,36 @@ Example:
 					console.table(json.data.orders); 
 				});
 ```
+
+## API Examples
+
+The TestDB database has many functions that return JSON and can be used to create APIs, but also stored procedures that modify data (insert/update/delete) and won't return JSON, just execute SQL that should not return any results. There is an example of main.cpp with all the API definitions for this sample database, also an HTML5/CCS3 web responsive frontend to consume these APIs, more on this later. In the following sections you will find different types of Web API definitions, using more features than the examples above.
+
+### Invoke stored procedure to insert record
+
+```
+	server::register_webapi
+	(
+		server::webapi_path("/api/gasto/add"), 
+		"Add expense record",
+		http::verb::POST, 
+		{
+			{"fecha", http::field_type::DATE, true},
+			{"categ_id", http::field_type::INTEGER, true},
+			{"monto", http::field_type::DOUBLE, true},
+			{"motivo", http::field_type::STRING, true}			
+		},
+		{},
+		[](http::request& req) 
+		{
+			sql::exec_sql("DB1", req.get_sql("call sp_gasto_insert($fecha, $categ_id, $monto, $motivo)"));
+			req.response.set_body("{\"status\": \"OK\"}");
+		}
+	);
+```
+Input rules are defined for each field, the name, the data type expected, and if it is required or optional, the name will be used to replace the value in the SQL template when using the `req.get_sql`, APi-Server++ takes care of pre-processing the fields to ensure that no SQL-injection attacks so they can be safely replaced into the SQL template. A multipart form POST is the only verb accepted for this API. With this definition of the API, the Server will take care of processing the request and validating the inputs as well as the security (authentication/authorization if roles were defined), when all the preconditions are met, then the lambda function will be executed.
+
+When the API executes a procedure that modifies data and does not return any resultsets, then a minimal JSON response with OK status is all that needs to be returned.
+
+
+
