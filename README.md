@@ -614,14 +614,14 @@ The program log should contain these lines at the beginning:
 {"source":"server","level":"info","msg":"registered WebAPI for path: /api/customer/info"}
 ```
 
-You new API has been registered and is ready for testing, you can use you HTML page, test.html, just add these lines to the tester code:
+You new API has been registered and is ready for testing, you can use your HTML page, test.html, just add these lines to the tester code:
 ```
 		call_api("/api/customer/info?customerid=BOLID", function(json) {
 					console.table(json.data.customer); 
 					console.table(json.data.orders); 
 				});
 ```
-We know that the SQL function returns 2 resultsets (JSON arrays) with specific names `customer` and `orders`, because of that we know how to properly show the response. In other words, we must have this knowledge in order to process the response, many of these SQL functions will return a single JSON array named `data`, but for in the case of more than one resultset, `data` becomes the wrapper field of the inner JSON arrays.
+We know that the SQL function returns 2 resultsets (JSON arrays) with specific names `customer` and `orders`, because of that we know how to properly show the response. In other words, we must have this knowledge in order to process the response, many of these SQL functions will return a single JSON array named `data`, but for the case of more than one resultset, `data` becomes the wrapper field of the inner JSON arrays.
 
 This is the JSON response for this case:
 ```
