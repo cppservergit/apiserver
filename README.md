@@ -26,6 +26,8 @@ int main()
 
 API-Server++ is a compact single-threaded epoll HTTP 1/1 microserver, for serving API requests only (GET/Multipart Form POST/OPTIONS), when a request arrives, the corresponding lambda will be dispatched for execution to a background thread, using the one-producer/many-consumers model. This way API-Server++ can multiplex thousands of concurrent connections with a single thread dispatching all the network-related tasks
 
+API-Server++ was designed to be run as a container on Kubernetes, but it can be run as a regular program on a terminal or as a SystemD Linux service, on production it will run behind an Ingress or Load Balancer providing TLS and Layer-7 protection.
+
 ## Requirements
 
 The test environment is Ubuntu 22.04 with GCC 12.3, we used Canonical's Multipass VMs on Windows 10 Pro, it's a very agile toolset for this purpose.
@@ -204,5 +206,74 @@ curl localhost:8080/api/login -F "login=mcordova" -F "password=basica"
 Expected output (token will vary):
 ```
 {"status":"OK","data":[{"displayname":"Martín Córdova","token_type":"bearer","id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2dpbiI6Im1jb3Jkb3ZhIiwibWFpbCI6ImNwcHNlcnZlckBtYXJ0aW5jb3Jkb3ZhLmNvbSIsInJvbGVzIjoiY2FuX2RlbGV0ZSwgY2FuX3VwZGF0ZSwgc3lzYWRtaW4iLCJleHAiOjE2OTE0NTQ1OTl9.M2i47hipMt9CxlPPA1zNeIpVIJiPfsMSiVJe0G7ZXHE"}]}
+```
+
+## Hello World - your first API
+
+On the same terminal windows where API-Server++ is running, please press CTRL-C to stop the server, now edit main.cpp in order to add your first API definition:
+```
+nano src/main.cpp
+```
+
+Add this code right above server:start():
+```
+	server::register_webapi
+	(
+		server::webapi_path("/api/shippers/view"), 
+		"List of shipping companies",
+		http::verb::GET, 
+		{} /* inputs */, 	
+		{} /* roles */,
+		[](http::request& req) 
+		{
+			req.response.set_body( sql::get_json_response("DB1", "select * from fn_shipper_view()") );
+		}
+	);
+```
+CTRL-x to exit and save.
+With one line of code we define a new API, with some metadata including a description, the HTTP method supported, input rules validation if any, authorized roles if any and most important, a lambda function with the code implementing the API, a one-liner in this case, thanks to the high-level abstractions of API-Server++.
+
+The whole program should look like this:
+```
+#include "server.h"
+
+int main()
+{
+        server::register_webapi
+        (
+                server::webapi_path("/api/shippers/view"),
+                "List of shipping companies",
+                http::verb::GET,
+                {} /* inputs */,
+                {} /* roles */,
+                [](http::request& req)
+                {
+                        req.response.set_body( sql::get_json_response("DB1", "select * from fn_shipper_view()") );
+                }
+        );
+
+        server::start();
+}
+```
+
+Now recompile, only the main.cpp module will be recompiled and the program relinked with the object files, it's a quick operation:
+```
+make
+```
+
+Expected output:
+```
+g++-12 -Wno-unused-parameter -Wpedantic -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -c src/main.cpp
+g++-12 -Wno-unused-parameter -Wpedantic -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel env.o logger.o jwt.o httputils.o sql.o login.o server.o main.o -lpq -lcurl -lcrypto -o "apiserver"
+```
+
+Now run the server again:
+```
+./run
+```
+
+Now starting the log output (2nd line) you should see this line:
+```
+{"source":"server","level":"info","msg":"registered WebAPI for path: /api/shippers/view"}
 ```
 
