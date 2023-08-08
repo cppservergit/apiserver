@@ -412,16 +412,6 @@ Now that we verified that the connection to API-Server++ is OK, let's create an 
 		call_api("/api/shippers/view", function(json) {
 					console.table(json.data); //print resultset to console
 				});
-
-		//call some builtin diagnostic APIs
-		call_api("/api/version", function(json) {
-					console.table(json.data); 
-				});
-	
-		call_api("/api/sysinfo", function(json) {
-					console.table(json.data); 
-				});
-
 	}
 
 	async function call_api(uri, fn, formData)
