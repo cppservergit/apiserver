@@ -311,7 +311,7 @@ Now starting the log output (2nd line) you should see this line:
 {"source":"server","level":"info","msg":"registered WebAPI for path: /api/shippers/view"}
 ```
 
-Now that the API-Server++ is running again and your API has been published, let's test it with CURL in the 2nd terminal we used before with curl, first, we need to login to obtain a [JWT token](https://jwt.io/introduction), otherwise, any attempt to invoke your API will be rejected with HTTP status code 401 (required login error).
+Now that the API-Server++ is running again and your API has been published, let's test it with CURL in the 2nd terminal we used before, first, we need to login to obtain a [JWT token](https://jwt.io/introduction), otherwise, any attempt to invoke your API will be rejected with HTTP status code 401 (login required error).
 
 ```
 curl localhost:8080/api/login -F "login=mcordova" -F "password=basica"
@@ -337,13 +337,13 @@ Expected output:
 {"status":"OK", "data":[{"shipperid":503,"companyname":"Century 22 Courier","phone":"800-WE-CHARGE"},{"shipperid":13,"companyname":"Federal Courier Venezuela","phone":"555-6728"},{"shipperid":3,"companyname":"Federal Shipping","phone":"(503) 555-9931"},{"shipperid":1,"companyname":"Speedy Express","phone":"(503) 555-9831"},{"shipperid":2,"companyname":"United Package","phone":"(505) 555-3199"},{"shipperid":501,"companyname":"UPS","phone":"500-CALLME"}]}
 ```
 
-The token gets validated by API-Server++ before executing your lambda, it has a default duration of 10 minutes and it can be configured via environment variable, in a Kubernetes-friendly way, in any case, authentication and authorization are transparent to your API and always enforced. All registered APIs are secure by default unless explicitly disabled, in this case a clear message will be recorded in the logs when registering the API:
+The token gets validated by API-Server++ before executing your lambda, it has a default duration of 10 minutes and it can be configured via environment variable, in a Kubernetes-friendly way, in any case, authentication and authorization are transparent to your API and always enforced. All registered APIs are secure by default unless explicitly disabled, in this case, a clear message will be recorded in the logs when registering the API:
 ```
 {"source":"server","level":"info","msg":"registered (insecure) WebAPI for path: /api/ping"}
 ```
 
-It's good to know how to test you APIs the "manual way" using CURL, but when passing the security token is required, it becomes a bit tedious, we can use a very simple HTML page with a bit of modern Javascript to automate API testing including security. For this exercise's sake we will assume that you are in your desktop environment, where you can use a browser to connect to the VM running your API, API-Server++ must be running on you Linux VM. 
-Open the browser and navigate to (PLEASE use your VM IP address or the hostname if you are using Canonical's Multipass VMs on Windows 10 Pro):
+It's good to know how to test your APIs the "manual way" using CURL, but when passing the security token is required, it becomes a bit tedious, we can use a very simple HTML page with a bit of modern Javascript to automate API testing including security. For this exercise's sake we will assume that you are in your desktop environment, where you can use a browser to connect to the VM running your API, API-Server++ must be running on your Linux VM. 
+Open the browser and navigate to this URL (PLEASE use your VM IP address or the hostname if you are using Canonical's Multipass VMs on Windows 10 Pro):
 ```
 http://your_VM_address:8080/api/sysinfo
 ```
@@ -477,10 +477,196 @@ If you check you API-Server++ terminal you will see some log entries like these:
 {"source":"access-log","level":"info","msg":"fd=13 remote-ip=172.19.80.1 GET path=/api/sysinfo elapsed-time=0.000008 user=","thread":"140455075771968"}
 ```
 
-You can configure the log to be less verbose by changing the environment variables in the `run` script, which is recommended for production because it has overhead and the Ingress/Load Balancer will produce entries like these.
+You can configure the log to be less verbose by changing the environment variables in the `run` script, which is recommended for production because it has overhead and the Ingress/Load Balancer will produce entries like these anyway, there is no need to duplicate them.
 ```
 export CPP_LOGIN_LOG=0
 export CPP_HTTP_LOG=0
 ```
 __Note__: warning and error log entries cannot be disabled.
 
+## Retrieving multiple resultsets
+
+Our TestDB backend contains a function that returns a JSON response containing a customer's record and the cutomer's orders given a customer ID:
+```
+CREATE OR REPLACE FUNCTION public.fn_customer_get(id character varying)
+    RETURNS TABLE(json character varying) 
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE SECURITY DEFINER PARALLEL UNSAFE
+    ROWS 1
+
+AS $BODY$
+	declare q1 varchar;
+	declare q2 varchar;
+	declare q varchar;
+BEGIN
+	select array_to_json(array_agg(row_to_json(t1))) into q1
+	from (select customerid, contactname, companyname, city, country, phone from demo.customers where customerid = id) t1;
+ 
+	select array_to_json(array_agg(row_to_json(t2))) into q2
+	from (select orderid, orderdate, shipcountry, shipper, total from vw_custorders where customerid = id order by orderid) t2;
+
+ 	if q2 is null then
+		q := '{"customer":' || q1 || ',' || '"orders":[]}';
+	else
+		q := '{"customer":' || q1 || ',' || '"orders":' || q2 || '}';
+	end if;
+	
+	RETURN QUERY select CAST(q as varchar) as json;
+	return;
+END;
+$BODY$;
+
+ALTER FUNCTION public.fn_customer_get(character varying)
+    OWNER TO postgres;
+```
+
+This SQL function is quite more verbose than in the HelloWorld example, but the required code in API-Server++ is barely more complex, now we need to define an input parameter to pass to the SQL function (an input rule), that's all.
+
+Stop the server with CTRL-C and edit main.cpp:
+```
+nano src/main.cpp
+```
+
+Add this code right above server::start()
+```
+	server::register_webapi
+	(
+		server::webapi_path("/api/customer/info"), 
+		"Retrieve customer record and the list of his purchase orders",
+		http::verb::GET, 
+		{ /* inputs */
+			{"customerid", http::field_type::STRING, true}
+		}, 	
+		{} /* roles */,
+		[](http::request& req)
+		{
+			req.response.set_body(sql::get_json_response("DB1", req.get_sql("select * from fn_customer_get($customerid)")));
+		}
+	);
+```
+As you can see, this API expects an input parameter named `customerid`, of type `STRING` and it is required, MUST be included in the invocation as a URI parameter, something like:
+
+```
+http://YouServer:8080/api/customer/info?customerid=BOLID
+```
+
+The whole program should look like this:
+```
+#include "server.h"
+
+int main()
+{
+        server::register_webapi
+        (
+                server::webapi_path("/api/shippers/view"),
+                "List of shipping companies",
+                http::verb::GET,
+                {} /* inputs */,
+                {} /* roles */,
+                [](http::request& req)
+                {
+                        req.response.set_body( sql::get_json_response("DB1", "select * from fn_shipper_view()") );
+                }
+        );
+
+	server::register_webapi
+	(
+		server::webapi_path("/api/customer/info"), 
+		"Retrieve customer record and the list of his purchase orders",
+		http::verb::GET, 
+		{ /* inputs */
+			{"customerid", http::field_type::STRING, true}
+		}, 	
+		{} /* roles */,
+		[](http::request& req)
+		{
+			req.response.set_body(sql::get_json_response("DB1", req.get_sql("select * from fn_customer_get($customerid)")));
+		}
+	);
+
+        server::start();
+}
+```
+
+CTRL-X to save and exit. Recompile:
+```
+make
+```
+
+Expected output:
+```
+g++-12 -Wno-unused-parameter -Wpedantic -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -c src/main.cpp
+g++-12 -Wno-unused-parameter -Wpedantic -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel env.o logger.o jwt.o httputils.o sql.o login.o server.o main.o -lpq -lcurl -lcrypto -o "apiserver"
+```
+
+Run the new version:
+```
+./run
+```
+
+The program log should contain these lines at the beginning:
+```
+{"source":"signal","level":"info","msg":"signal interceptor registered"}
+{"source":"server","level":"info","msg":"registered WebAPI for path: /api/shippers/view"}
+{"source":"server","level":"info","msg":"registered WebAPI for path: /api/customer/info"}
+```
+
+You new API has been registered and is ready for testing, you can use you HTML page, test.html, just add these lines to the tester code:
+```
+		call_api("/api/customer/info?customerid=BOLID", function(json) {
+					console.table(json.data.customer); 
+					console.table(json.data.orders); 
+				});
+```
+We know that the SQL function returns 2 resultsets (JSON arrays) with specific names `customer` and `orders`, because of that we know how to properly show the response. In other words, we must have this knowledge in order to process the response, many of these SQL functions will return a single JSON array named `data`, but for in the case of more than one resultset, `data` becomes the wrapper field of the inner JSON arrays.
+
+This is the JSON response for this case:
+```
+{
+	"status": "OK",
+	"data": {
+		"customer": [{
+			"customerid": "BOLID",
+			"contactname": "Martín Sommer",
+			"companyname": "Bólido Comidas preparadas",
+			"city": "Madrid",
+			"country": "Spain",
+			"phone": "(91) 555 22 82"
+		}],
+		"orders": [{
+			"orderid": 10326,
+			"orderdate": "1994-11-10",
+			"shipcountry": "Spain",
+			"shipper": "United Package",
+			"total": 982
+		}, {
+			"orderid": 10801,
+			"orderdate": "1996-01-29",
+			"shipcountry": "Spain",
+			"shipper": "United Package",
+			"total": 3026.85
+		}, {
+			"orderid": 10970,
+			"orderdate": "1996-04-23",
+			"shipcountry": "Spain",
+			"shipper": "Speedy Express",
+			"total": 224
+		}]
+	}
+}
+```
+
+If you want to view the raw JSON response just add this line to your Javascript test handler:
+```
+console.log(JSON.stringify(json));
+```
+
+Example:
+```
+		call_api("/api/customer/info?customerid=BOLID", function(json) {
+					console.log(JSON.stringify(json));
+					console.table(json.data.customer); 
+					console.table(json.data.orders); 
+				});
+```
