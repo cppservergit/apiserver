@@ -239,6 +239,34 @@ Add this code right above server:start():
 CTRL-x to exit and save.
 With one line of code we define a new API, with some metadata including a description, the HTTP method supported, input rules validation if any, authorized roles if any and most important, a lambda function with the code implementing the API, a one-liner in this case, thanks to the high-level abstractions of API-Server++.
 
+The function `sql::get_json_response()` executes a query that MUST return JSON straight from the database, in the specific case of the HelloWorld example the SQL function looks like this:
+
+```
+CREATE OR REPLACE FUNCTION public.fn_shipper_view()
+    RETURNS TABLE(json character varying) 
+    LANGUAGE 'sql'
+    COST 100
+    VOLATILE SECURITY DEFINER PARALLEL UNSAFE
+    ROWS 1000
+
+AS $BODY$
+
+	select array_to_json(array_agg(row_to_json(d))) from
+		(SELECT
+			shipperid,
+			companyname,
+			phone
+		FROM 
+			demo.shippers
+		ORDER BY
+			companyname) d
+$BODY$;
+
+ALTER FUNCTION public.fn_shipper_view()
+    OWNER TO postgres;
+```
+The public schema of TestDB contains several examples of functions that return JSON, yours should follow this pattern because API-Server++ relies on the Database to generate the JSON output from queries returning resultsets.
+
 The whole program should look like this:
 ```
 #include "server.h"
