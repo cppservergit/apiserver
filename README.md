@@ -251,7 +251,7 @@ Add this code right above server:start():
 	);
 ```
 CTRL-x to exit and save.
-With one line of code we define a new API, with some metadata including a description, the HTTP method supported, input rules validation if any, authorized roles if any and most important, a lambda function with the code implementing the API, a one-liner in this case, thanks to the high-level abstractions of API-Server++.
+With one line of code, we define a new API, with some metadata including a description, the HTTP method supported, input rules validation if any, authorized roles if any, and most important, a lambda function with the code implementing the API, a one-liner in this case, thanks to the high-level abstractions of API-Server++.
 
 The function `sql::get_json_response()` executes a query that MUST return JSON straight from the database, in the specific case of the HelloWorld example the SQL function looks like this:
 
@@ -681,7 +681,7 @@ Example:
 
 The TestDB database has many functions that return JSON and can be used to create APIs, but also stored procedures that modify data (insert/update/delete) and won't return JSON, just execute SQL that should not return any results. There is an example of main.cpp with all the API definitions for this sample database, also an HTML5/CCS3 web responsive frontend to consume these APIs, more on this later. In the following sections you will find different types of Web API definitions, using more features than the examples above.
 
-### Invoke stored procedure to insert record
+### Invoke stored procedure to insert or update record
 
 ```
 	server::register_webapi
@@ -706,6 +706,80 @@ The TestDB database has many functions that return JSON and can be used to creat
 Input rules are defined for each field, the name, the data type expected, and if it is required or optional, the name will be used to replace the value in the SQL template when using the `req.get_sql`, APi-Server++ takes care of pre-processing the fields to ensure that no SQL-injection attacks so they can be safely replaced into the SQL template. A multipart form POST is the only verb accepted for this API. With this definition of the API, the Server will take care of processing the request and validating the inputs as well as the security (authentication/authorization if roles were defined), when all the preconditions are met, then the lambda function will be executed.
 
 When the API executes a procedure that modifies data and does not return any resultsets, then a minimal JSON response with OK status is all that needs to be returned.
+
+The case for using a procedure that updates a record is very similar, but in this case we used the roles field to set authorization restrictions, only users with the specified roles (can_update) can invoke this Web API:
+```
+	server::register_webapi
+	(
+		server::webapi_path("/api/gasto/update"), 
+		"Update expense record",
+		http::verb::POST, 
+		{
+			{"gasto_id", http::field_type::INTEGER, true},
+			{"fecha", http::field_type::DATE, true},
+			{"categ_id", http::field_type::INTEGER, true},
+			{"monto", http::field_type::DOUBLE, true},
+			{"motivo", http::field_type::STRING, true}			
+		},
+		{"can_update"},
+		[](http::request& req) 
+		{
+			auto sql {req.get_sql("call sp_gasto_update($gasto_id, $fecha, $categ_id, $monto, $motivo)")};
+			sql::exec_sql("DB1", sql);
+			req.response.set_body("{\"status\": \"OK\"}");
+		}
+	);
+```
+
+The stored procedure that serves as the backend to this Web API:
+```
+CREATE OR REPLACE PROCEDURE public.sp_gasto_update(
+	IN gasto_id integer,
+	IN fecha date,
+	IN categ_id integer,
+	IN monto double precision,
+	IN motivo character varying)
+LANGUAGE 'sql'
+AS $BODY$
+
+		UPDATE demo.gasto SET
+			fecha=$2,
+			categ_id=$3,
+			monto=$4,
+			motivo=$5
+		WHERE
+			gasto_id=$1
+			
+$BODY$;
+ALTER PROCEDURE public.sp_gasto_update(integer, date, integer, double precision, character varying)
+    OWNER TO postgres;
+```
+
+### Search filter API
+
+This API executes an SQL function that returns a JSON response, sales by category for a period of time, the date-from/date-to parameters are the input rules for this API:
+```
+	server::register_webapi
+	(
+		server::webapi_path("/api/sales/query"), 
+		"Sales report by category in a time interval",
+		http::verb::POST, 
+		{
+			{"date1", http::field_type::DATE, true},
+			{"date2", http::field_type::DATE, true}
+		},
+		{"report", "sysadmin"},
+		[](http::request& req) 
+		{
+			auto sql {req.get_sql("select * from fn_sales_by_category($date1, $date2)")};
+			std::string json {sql::get_json_response("DB1", sql)};
+			req.response.set_body(json);
+		}
+	);
+```
+The backend SQL function may be of a certain complexity, but it's hidden from the API implementation, as long as it returns JSON, we are good.
+In this example we also used a list of authorized roles, the user invoking the API must belong to any of those roles, otherwise, execution will be denied and a JSON response with the status INVALID will be returned.
+
 
 
 
