@@ -46,7 +46,7 @@ It does use the native PostgreSQL client C API `libpq` for maximum speed, as wel
 
 ## Requirements
 
-The test environment is Ubuntu 22.04 with GCC 12.3, we used Canonical's Multipass VMs on Windows 10 Pro, it's a very agile toolset for this purpose.
+The test environment is Ubuntu 22.04 with GCC 12.3, we used Canonical's Multipass VMs on Windows 10 Pro, it's a very agile tool for managing lightweight VMs on Windows.
 
 Update Ubuntu package list:
 ```
@@ -823,3 +823,11 @@ make
 2) Frontend: unzip demo.zip, the Demo HTML5 WebApp, edit /demo/js/frontend.js to point the _SERVER_ variable to your API-Server++ and double-click on index.html, log in with user mcordova/basica and play with it. This is a responsive webapp with several cool features. You don't need a web server to access this static website, the browser can use it straight from the filesystem.
 
 ![ui](https://github.com/cppservergit/apiserver/assets/126841556/36b7910d-937e-45d1-a4b4-f5748a90cbb0)
+
+### Uploads
+
+For testing the upload feature you need to create /var/blobs on your VM and assign permissions so API-Server++ can read/write files into that directory:
+```
+sudo mkdir /var/blobs
+chmod 777 /var/blobs
+```
