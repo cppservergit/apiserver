@@ -28,7 +28,7 @@ API-Server++ is a compact single-threaded epoll HTTP 1/1 microserver, for servin
 
 API-Server++ was designed to be run as a container on Kubernetes, with a stateless security/session model bases on JSON web token (good for scalability), and built-in observability features for Grafana stack, but it can be run as a regular program on a terminal or as a SystemD Linux service, on production it will run behind an Ingress or Load Balancer providing TLS and Layer-7 protection.
 
-It does use native PostgreSQL client C API `libpq` for maximum speed, as well as `libcurl` for secure email and openssl v3 for JWT signatures.
+It does use the native PostgreSQL client C API `libpq` for maximum speed, as well as `libcurl` for secure email and openssl v3 for JWT signatures.
 
 ## Requirements
 
