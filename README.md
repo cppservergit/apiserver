@@ -101,7 +101,7 @@ g++-12 -Wno-unused-parameter -Wpedantic -Wall -Wextra -O3 -std=c++23 -pthread -f
 g++-12 -Wno-unused-parameter -Wpedantic -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel env.o logger.o jwt.o httputils.o sql.o login.o server.o main.o -lpq -lcurl -lcrypto -o "apiserver"
 ```
 
-## Bash script to run API-Server++
+## Run API-Server++
 
 Please edit run script and fix the PostgreSQL connection strings to meet your environment:
 ```
@@ -182,5 +182,27 @@ Expected output:
 {"source":"epoll","level":"info","msg":"starting epoll FD: 4"}
 {"source":"epoll","level":"info","msg":"listen socket FD: 5 port: 8080"}
 {"source":"pool","level":"info","msg":"starting worker thread","thread":"139977816012352"}
+```
+
+## Test connection to API-Server++
+
+Open another terminal on your VM and execute:
+```
+curl localhost:8080/api/version
+```
+
+Expected output:
+```
+{"status": "OK", "data":[{"pod": "test", "server": "API-Server++ v1.0.0-20230807"}]}
+```
+
+Test login API (tables s_user, s_role and s_user_role store the security configuration in the public schema of testdb):
+```
+curl localhost:8080/api/login -F "login=mcordova" -F "password=basica"
+```
+
+Expected output (token will vary):
+```
+{"status":"OK","data":[{"displayname":"Martín Córdova","token_type":"bearer","id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2dpbiI6Im1jb3Jkb3ZhIiwibWFpbCI6ImNwcHNlcnZlckBtYXJ0aW5jb3Jkb3ZhLmNvbSIsInJvbGVzIjoiY2FuX2RlbGV0ZSwgY2FuX3VwZGF0ZSwgc3lzYWRtaW4iLCJleHAiOjE2OTE0NTQ1OTl9.M2i47hipMt9CxlPPA1zNeIpVIJiPfsMSiVJe0G7ZXHE"}]}
 ```
 
