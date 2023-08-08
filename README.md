@@ -1,6 +1,6 @@
 # API-Server++
 
-Easy to build Web APIs with Modern C++ and a minimal code framework and imperative/functional programming style.
+Easy to build Web APIs with Modern C++ and a minimal code framework using imperative/functional programming style. Fast, secure, and well-documented.
 
 ```
 #include "server.h"
@@ -26,7 +26,9 @@ int main()
 
 API-Server++ is a compact single-threaded epoll HTTP 1/1 microserver, for serving API requests only (GET/Multipart Form POST/OPTIONS), when a request arrives, the corresponding lambda will be dispatched for execution to a background thread, using the one-producer/many-consumers model. This way API-Server++ can multiplex thousands of concurrent connections with a single thread dispatching all the network-related tasks
 
-API-Server++ was designed to be run as a container on Kubernetes, but it can be run as a regular program on a terminal or as a SystemD Linux service, on production it will run behind an Ingress or Load Balancer providing TLS and Layer-7 protection.
+API-Server++ was designed to be run as a container on Kubernetes, with a stateless security/session model bases on JSON web token (good for scalability), and built-in observability features for Grafana stack, but it can be run as a regular program on a terminal or as a SystemD Linux service, on production it will run behind an Ingress or Load Balancer providing TLS and Layer-7 protection.
+
+It does use native PostgreSQL client C API `libpq` for maximum speed, as well as `libcurl` for secure email and openssl v3 for JWT signatures.
 
 ## Requirements
 
@@ -75,6 +77,8 @@ Restore:
 ```
 cat testdb.backup | sudo docker exec -i -e PG_PASSWORD=basica pgsql pg_restore -d testdb -h localhost -U postgres
 ```
+
+If you already have a PostgreSQL server running somewhere, just create `testdb` and restore the backup.
 
 Take note of your PostgreSQL hostname or IP address, you will need it to configure the script used to run API-Server++.
 
@@ -198,6 +202,8 @@ Expected output:
 {"status": "OK", "data":[{"pod": "test", "server": "API-Server++ v1.0.0-20230807"}]}
 ```
 
+## Test login API and JWT
+
 Test login API (tables s_user, s_role and s_user_role store the security configuration in the public schema of testdb):
 ```
 curl localhost:8080/api/login -F "login=mcordova" -F "password=basica"
@@ -276,4 +282,177 @@ Now starting the log output (2nd line) you should see this line:
 ```
 {"source":"server","level":"info","msg":"registered WebAPI for path: /api/shippers/view"}
 ```
+
+Now that the API-Server++ is running again and your API has been published, let's test it with CURL in the 2nd terminal we used before with curl, first, we need to login to obtain a [JWT token](https://jwt.io/introduction), otherwise, any attempt to invoke your API will be rejected with HTTP status code 401 (required login error).
+
+```
+curl localhost:8080/api/login -F "login=mcordova" -F "password=basica"
+```
+
+Expected output:
+```
+{"status":"OK","data":[{"displayname":"Martín Córdova","token_type":"bearer","id_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2dpbiI6Im1jb3Jkb3ZhIiwibWFpbCI6ImNwcHNlcnZlckBtYXJ0aW5jb3Jkb3ZhLmNvbSIsInJvbGVzIjoiY2FuX2RlbGV0ZSwgY2FuX3VwZGF0ZSwgc3lzYWRtaW4iLCJleHAiOjE2OTE0Njc3MTR9.18g9mAXNkbXAxxP1i6rGKR1IKWAIuLpFAAkwaN8Jmjc"}]}
+```
+
+Mark and copy the token value only, without the quotes, in this example, it would be:
+```
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2dpbiI6Im1jb3Jkb3ZhIiwibWFpbCI6ImNwcHNlcnZlckBtYXJ0aW5jb3Jkb3ZhLmNvbSIsInJvbGVzIjoiY2FuX2RlbGV0ZSwgY2FuX3VwZGF0ZSwgc3lzYWRtaW4iLCJleHAiOjE2OTE0Njc3MTR9.18g9mAXNkbXAxxP1i6rGKR1IKWAIuLpFAAkwaN8Jmjc
+```
+
+Now invoke your HelloWorld API with curl, passing the proper header with the token, something like `-H "Authorization: Bearer xyz123..."`
+```
+curl localhost:8080/api/shippers/view -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2dpbiI6Im1jb3Jkb3ZhIiwibWFpbCI6ImNwcHNlcnZlckBtYXJ0aW5jb3Jkb3ZhLmNvbSIsInJvbGVzIjoiY2FuX2RlbGV0ZSwgY2FuX3VwZGF0ZSwgc3lzYWRtaW4iLCJleHAiOjE2OTE0Njc3MTR9.18g9mAXNkbXAxxP1i6rGKR1IKWAIuLpFAAkwaN8Jmjc"
+```
+
+Expected output:
+```
+{"status":"OK", "data":[{"shipperid":503,"companyname":"Century 22 Courier","phone":"800-WE-CHARGE"},{"shipperid":13,"companyname":"Federal Courier Venezuela","phone":"555-6728"},{"shipperid":3,"companyname":"Federal Shipping","phone":"(503) 555-9931"},{"shipperid":1,"companyname":"Speedy Express","phone":"(503) 555-9831"},{"shipperid":2,"companyname":"United Package","phone":"(505) 555-3199"},{"shipperid":501,"companyname":"UPS","phone":"500-CALLME"}]}
+```
+
+The token gets validated by API-Server++ before executing your lambda, it has a default duration of 10 minutes and it can be configured via environment variable, in a Kubernetes-friendly way, in any case, authentication and authorization are transparent to your API and always enforced. All registered APIs are secure by default unless explicitly disabled, in this case a clear message will be recorded in the logs when registering the API:
+```
+{"source":"server","level":"info","msg":"registered (insecure) WebAPI for path: /api/ping"}
+```
+
+It's good to know how to test you APIs the "manual way" using CURL, but when passing the security token is required, it becomes a bit tedious, we can use a very simple HTML page with a bit of modern Javascript to automate API testing including security. For this exercise's sake we will assume that you are in your desktop environment, where you can use a browser to connect to the VM running your API, API-Server++ must be running on you Linux VM. 
+Open the browser and navigate to (PLEASE use your VM IP address or the hostname if you are using Canonical's Multipass VMs on Windows 10 Pro):
+```
+http://your_VM_address:8080/api/sysinfo
+```
+
+Expected output on the browser page:
+```
+{"status": "OK", "data":[{"pod":"test","totalRequests":69,"avgTimePerRequest":0.00050976,"connections":2,"activeThreads":1}]}
+```
+
+There is another built-in API to serve metrics in a Prometheus-compatible format:
+```
+http://your_VM_address:8080/api/metrics
+```
+
+Expected output on the browser page:
+```
+# HELP cpp_requests_total The number of HTTP requests processed by this container.
+# TYPE cpp_requests_total counter
+cpp_requests_total{pod="test"} 70
+# HELP cpp_connections Client tcp-ip connections.
+# TYPE cpp_connections counter
+cpp_connections{pod="test"} 2
+# HELP cpp_active_threads Active threads.
+# TYPE cpp_active_threads counter
+cpp_active_threads{pod="test"} 1
+# HELP cpp_avg_time Average request processing time in milliseconds.
+# TYPE cpp_avg_time counter
+cpp_avg_time{pod="test"} 0.00050264
+```
+
+Now that we verified that the connection to API-Server++ is OK, let's create an HTML file test.html on your disk, add this content, change the value of the _SERVER_ variable (see the beginning of the `script` section) and save it:
+```
+<!doctype html>
+	<head>
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+		<title>JSON API tester</title>
+	</head>
+
+<html>
+	<main class="container">
+	<article>
+		<h1>Please open the console with [shift+ctrl+i]</h1>
+	</article>
+	</main>
+</html>
+
+<script>
+	// REMEMBER TO CHANGE THIS to point to your Ubuntu VM running API-Server++ !!!
+	const _SERVER_ = "http://test.mshome.net:8080";
+
+	onload = async function() {
+		//login
+		const loginForm = new FormData();
+		loginForm.append("login", "mcordova");
+		loginForm.append("password", "basica");
+		//call and wait for login to return
+		await call_api("/api/login", function(json) {
+				console.log("User: " + json.data[0].displayname);
+				console.log("Token: " + json.data[0].id_token);
+				sessionStorage.setItem("token", json.data[0].id_token); //store token for next request
+			}, loginForm);
+
+		//call hello world API
+		call_api("/api/shippers/view", function(json) {
+					console.table(json.data); //print resultset to console
+				});
+
+		//call some builtin diagnostic APIs
+		call_api("/api/version", function(json) {
+					console.table(json.data); 
+				});
+	
+		call_api("/api/sysinfo", function(json) {
+					console.table(json.data); 
+				});
+
+	}
+
+	async function call_api(uri, fn, formData)
+	{
+		try {
+			const token = sessionStorage.getItem("token");
+			const auth = "Bearer " + sessionStorage.getItem("token");
+			let headers = {};
+			if (token != "")
+				headers = { 'Authorization': auth };
+			
+			let options;
+			if (formData === undefined)
+				options = {method: 'GET', mode: 'cors', headers};
+			else
+				options = {method: 'POST', mode: 'cors', headers,  body: formData};
+
+			const res = await fetch(_SERVER_ + uri, options);
+			if (res.ok) {
+				const json = await res.json();
+				console.log("TEST " + uri + " HTTP status: " + res.status + " JSON status: " + json.status);
+				if (json.status == "OK") {
+					fn(json);
+				} else if (json.status == "EMPTY") {
+					console.log("Data not found");
+				} else if (json.status == "INVALID") {
+					console.log("Service data validation error: " + json.validation.description + " id: " + json.validation.id);
+				} else if (json.status == "ERROR") {
+					console.log("Service error: " + json.description);
+				}
+			} else
+				if (res.status == 401)
+					console.log("Authentication required: please login");
+				else
+					console.log("HTTP error code: " + res.status);
+		} catch (error) {
+			console.log("Connection error: " + error.message);
+		}
+	}
+</script>
+```
+
+Now double-click on the file to open it in the browser, and press `shift+ctrl+i` to open de developer tools, the console in particular, refresh the page several times and watch the results.
+The `call_api()` function is a very handy testing tool that you can use as the base code to invoke your APIs or to use a page like this for quickly unit-testing your APIs, it is far less cumbersome than using CURL alone and you can take advantage of the browser's developer tools.
+
+If you check you API-Server++ terminal you will see some log entries like these:
+```
+{"source":"security","level":"info","msg":"login OK - user: mcordova IP: 172.19.80.1 token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2dpbiI6Im1jb3Jkb3ZhIiwibWFpbCI6ImNwcHNlcnZlckBtYXJ0aW5jb3Jkb3ZhLmNvbSIsInJvbGVzIjoiY2FuX2RlbGV0ZSwgY2FuX3VwZGF0ZSwgc3lzYWRtaW4iLCJleHAiOjE2OTE0NzM3MTl9.7z495wh6csYCavjxLK6-QIUWYWeFO2nLLQCI4gh44ts roles: can_delete, can_update, sysadmin","thread":"140455100950080"}
+{"source":"access-log","level":"info","msg":"fd=13 remote-ip=172.19.80.1 POST path=/api/login elapsed-time=0.000907 user=","thread":"140455100950080"}
+{"source":"access-log","level":"info","msg":"fd=13 remote-ip=172.19.80.1 OPTIONS path=/api/shippers/view elapsed-time=0.000007 user=","thread":"140455084164672"}
+{"source":"access-log","level":"info","msg":"fd=10 remote-ip=172.19.80.1 OPTIONS path=/api/version elapsed-time=0.000004 user=","thread":"140455084164672"}
+{"source":"access-log","level":"info","msg":"fd=13 remote-ip=172.19.80.1 OPTIONS path=/api/sysinfo elapsed-time=0.000006 user=","thread":"140455092557376"}
+{"source":"access-log","level":"info","msg":"fd=14 remote-ip=172.19.80.1 GET path=/api/version elapsed-time=0.000007 user=","thread":"140455092557376"}
+{"source":"access-log","level":"info","msg":"fd=10 remote-ip=172.19.80.1 GET path=/api/shippers/view elapsed-time=0.000601 user=mcordova","thread":"140455084164672"}
+{"source":"access-log","level":"info","msg":"fd=13 remote-ip=172.19.80.1 GET path=/api/sysinfo elapsed-time=0.000008 user=","thread":"140455075771968"}
+```
+
+You can configure the log to be less verbose by changing the environment variables in the `run` script, which is recommended for production because it has overhead and the Ingress/Load Balancer will produce entries like these.
+```
+export CPP_LOGIN_LOG=0
+export CPP_HTTP_LOG=0
+```
+__Note__: warning and error log entries cannot be disabled.
 
