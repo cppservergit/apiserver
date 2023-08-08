@@ -342,6 +342,8 @@ The token gets validated by API-Server++ before executing your lambda, it has a 
 {"source":"server","level":"info","msg":"registered (insecure) WebAPI for path: /api/ping"}
 ```
 
+### Testing with Javascript in the browser console
+
 It's good to know how to test your APIs the "manual way" using CURL, but when passing the security token is required, it becomes a bit tedious, we can use a very simple HTML page with a bit of modern Javascript to automate API testing including security. For this exercise's sake we will assume that you are in your desktop environment, where you can use a browser to connect to the VM running your API, API-Server++ must be running on your Linux VM. 
 Open the browser and navigate to this URL (PLEASE use your VM IP address or the hostname if you are using Canonical's Multipass VMs on Windows 10 Pro):
 ```
