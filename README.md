@@ -779,7 +779,47 @@ This API executes an SQL function that returns a JSON response, sales by categor
 ```
 The backend SQL function may be of a certain complexity, but it's hidden from the API implementation, as long as it returns JSON, we are good.
 In this example we also used a list of authorized roles, the user invoking the API must belong to any of those roles, otherwise, execution will be denied and a JSON response with the status INVALID will be returned.
+If you want to test this API, there is data for dates between 1994-01-01 and 1996-12-31.
 
+### Delete record API with additional custom validator
 
+This API will invoke a stored procedure to delete a record, but instead of waiting for the database raise an error if there is a violation of referential integrity, the API implements a custom validator rule using a lambda inside the main function body, this way an INVALID status with a specific message may be returned instead of an ERROR:
+```
+	server::register_webapi
+	(
+		server::webapi_path("/api/categ/delete"), 
+		"Delete category record",
+		http::verb::GET, 
+		{{"id", http::field_type::INTEGER, true}},
+		{"can_delete"},
+		[](http::request& req) 
+		{
+			//validator for referential integrity
+			req.enforce("_dialog_", "$err.delete", [&req]()-> bool { 
+				return !sql::has_rows("DB1", req.get_sql("select * from fn_categ_in_use($id)"));
+			});
+			sql::exec_sql("DB1", req.get_sql("call sp_categ_delete($id)"));
+			req.response.set_body("{\"status\": \"OK\"}");
+		}
+	);
+```
+The `req.enforce()` method evaluates the result of the passed code (validator), if false then stops execution of the API and the client will receive a JSON response with status INVALID and the fields passed to this method (first two arguments). In this example, the validator checks if this category ID is being used in another table, the SQL logic for this is encapsulated in the fn_categ_in_use() function, which does not return JSON but a regular resultset, the `sql::has_rows()` returns true if the resultset contains at least 1 row. This example shows how custom validation/pre-condition rules can be applied inside an API, and if any of these custom validators return false then the rest of the code won't be executed, that's the guarantee enforced by API-Server++.
 
+## Demo App
 
+There is a complete Demo case, frontend and backend, you should download both in order to play with it:
+
+* [Demo Web Responsive App](https://cppserver.com/files/apiserver/demo.zip)
+* [main.cpp](https://cppserver.com/files/apiserver/main.cpp)
+
+Instructions:
+
+1) Backend: download main.cpp into /apiserver/src and recompile with `make`. From the directory /apiserver, make sure the server is not running and then execute:
+```
+curl https://cppserver.com/files/apiserver/main.cpp -o src/main.cpp
+make
+```
+
+2) Frontend: unzip demo.zip, the Demo HTML5 WebApp, edit /demo/js/frontend.js to point the _SERVER_ variable to your API-Server++ and double-click on index.html, log in with user mcordova/basica and play with it. This is a responsive webapp with several cool features. You don't need a web server to access this static website, the browser can use it straight from the filesystem.
+
+![ui](https://github.com/cppservergit/apiserver/assets/126841556/36b7910d-937e-45d1-a4b4-f5748a90cbb0)
