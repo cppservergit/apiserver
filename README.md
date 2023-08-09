@@ -103,9 +103,14 @@ Retrieve latest version of API-Server++
 git clone https://github.com/cppservergit/apiserver
 ```
 
+Navigate into API-Server++ directory
+```
+cd apiserver
+```
+
 Compile and build executable
 ```
-cd apiserver && make
+make
 ```
 
 Expected output:
