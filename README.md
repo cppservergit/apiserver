@@ -24,7 +24,7 @@ int main()
 }
 ```
 
-This is the declaration of the utility function used to register an API, shown above:
+This is the declaration of the utility function used to register an API as shown above:
 ```
 	void register_webapi(
 		const webapi_path& _path, 
@@ -36,7 +36,7 @@ This is the declaration of the utility function used to register an API, shown a
 		bool _is_secure = true
 	);
 ```
-You can specify input rules (input parameters, optional), authorized roles (optional), and your lambda function, which most of the time will be very simple, but it can also incorporate additional validations.
+You can specify input rules (input parameters, optional), authorized roles (optional), and your lambda function, which most of the time will be very simple, but it can also incorporate additional validations. All this metadata will be used to auto-generate API documentation.
 
 API-Server++ is a compact single-threaded epoll HTTP 1/1 microserver, for serving API requests only (GET/Multipart Form POST/OPTIONS), when a request arrives, the corresponding lambda will be dispatched for execution to a background thread, using the one-producer/many-consumers model. This way API-Server++ can multiplex thousands of concurrent connections with a single thread dispatching all the network-related tasks. API-Server++ is an async, non-blocking, event-oriented server, async because of the way the tasks are dispatched, it returns immediately to keep processing network events, while a background thread picks the task and executes it. The kernel will notify the program when there are events to process, in which case, non-blocking operations will be used on the sockets, and the program won't consume CPU while waiting for events, this way a single-threaded server can serve thousands of concurrent clients if the I/O tasks are fast. The size of the workers' thread pool can be configured via environment variable, the default is 4, which has proved to be good enough for high loads on VMs with 4-6 virtual cores.
 
