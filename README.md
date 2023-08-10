@@ -9,22 +9,17 @@ int main()
 {
 	server::register_webapi
 	(
-		server::webapi_path("/api/shippers/view"), 
-		"List of shipping companies",
-		http::verb::GET, 
-		{} /* inputs */, 	
-		{} /* roles */,
-		[](http::request& req) 
-		{
+		server::webapi_path("/api/shippers/view"), "List of shipping companies", http::verb::GET, 
+		[](http::request& req) {
 			req.response.set_body( sql::get_json_response("DB1", "select * from fn_shipper_view()") );
 		}
 	);
-
+	
 	server::start();
 }
 ```
 
-This is the declaration of the utility function used to register an API as shown above:
+This is the declaration of the utility function used to register an API with all its features (a simplified version was used above):
 ```
 	void register_webapi(
 		const webapi_path& _path, 
