@@ -144,9 +144,6 @@ export CPP_LOGIN_LOG=1
 export CPP_HTTP_LOG=1
 export CPP_PORT=8080
 export CPP_POOL_SIZE=4
-# default paths
-export CPP_MAIL_TEMPLATES="/var/mail"
-export CPP_BLOB_STORAGE="/var/blobs"
 # JWT config
 export CPP_JWT_PASSWORD="basica"
 export CPP_JWT_EXP=600
@@ -831,6 +828,9 @@ For testing the upload feature you need to create /var/blobs on your VM and assi
 sudo mkdir /var/blobs
 chmod 777 /var/blobs
 ```
+
+When using API-Server++ as a container on Kubernetes, volumes and volume mappings will be used to map /var/blobs to the actual storage destination on the Kubernetes Cluster. This is transparent to API-Server++.
+
 ## Memory safety
 
 API-Sever++ has been tested for memory safety (leaks and overflows) with static analysis tools, CPPCheck and FlawFinder, as well as dynamic analysis instrumentation including Valgrind and GCC memory sanitizer, it has passed all tests, only FlawFinder prints 3 warnings that can be safely assumed as false-positives:
