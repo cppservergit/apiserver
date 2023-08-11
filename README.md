@@ -831,3 +831,54 @@ For testing the upload feature you need to create /var/blobs on your VM and assi
 sudo mkdir /var/blobs
 chmod 777 /var/blobs
 ```
+## Memory safety
+
+API-Sever++ has been tested for memory safety (leaks and overflows) with static analysis tools, CPPCheck and FlawFinder, as well as dynamic analysis instrumentation including Valgrind and GCC memory sanitizer, it has passed all tests, only FlawFinder prints 3 warnings that can be safely assumed as false-positives:
+
+```
+FINAL RESULTS:
+
+src/env.cpp:26:  [3] (buffer) getenv:
+  Environment variables are untrustable input if they can be set by an
+  attacker. They can have any content and length, and the same variable can
+  be set more than once (CWE-807, CWE-20). Check environment variables
+  carefully before using them.
+src/env.cpp:42:  [3] (buffer) getenv:
+  Environment variables are untrustable input if they can be set by an
+  attacker. They can have any content and length, and the same variable can
+  be set more than once (CWE-807, CWE-20). Check environment variables
+  carefully before using them.
+src/server.cpp:455:  [1] (buffer) read:
+  Check buffer boundaries if used in a loop including recursive loops
+  (CWE-120, CWE-20).
+```
+
+The first two mention code related to reading environment variables, which in the case of API-Server++ is an unavoidable task and are always supplied by a system administrator, on Kubernetes some of them would be Secrets, so they are mostly safe to read, and the code used to read the variables takes care of safe type conversion and nullptr checks, example:
+
+```
+	unsigned short int env_vars::read_env(const char* name, unsigned short int default_value) noexcept
+	{
+		unsigned short int value{default_value};
+		if (const char* env_p = std::getenv(name)) {
+			std::string_view str(env_p);
+			auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), value);
+			if (ec == std::errc::invalid_argument)
+				logger::log(LOGGER_SRC, "warn", std::string(__FUNCTION__) + " -> invalid argument for std::from_chars: " + std::string(env_p) + " env-var: " + std::string(name), true);
+			else if (ec == std::errc::result_out_of_range)
+				logger::log(LOGGER_SRC, "warn", std::string(__FUNCTION__) + " -> number out of range in std::from_chars: " + std::string(env_p) + " env-var: " + std::string(name), true);
+		}
+		return value;
+	}
+```
+The code above will not accept an invalid value, if one was supplied via the environment, then it will return the default value. Modern C++ is used to achieve this.
+
+The last one is related to the use of the read() C function used to read from data from sockets, in this case, a C++ std::array type is used for the buffer, and there is no way a buffer overflow can happen:
+```
+int count = read(fd, data.data(), data.size());
+```
+It won't read more bytes than `data.size()`.
+
+Therefore we can assume these warnings are not relevant and the program is memory-safe. 
+For the dynamic runtime instrumentation, the program was bombarded with 2000 concurrent connections and thousands of requests, so all code was covered (it's a simple program, not many paths of execution), and no leaks were found.
+
+
