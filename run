@@ -9,7 +9,7 @@ export CPP_JWT_EXP=600
 # ODBC SQL authenticator config
 export CPP_LOGINDB="Driver=FreeTDS;SERVER=demodb.mshome.net;PORT=1433;DATABASE=testdb;UID=sa;PWD=basica;APP=CPPServer;Encryption=off;ClientCharset=UTF-8"
 # ODBC SQL data sources
-export CPP_DB1="Driver=FreeTDS;SERVER=demodb.mshome.net;PORT=1433;DATABASE=demodb;UID=sa;PWD=basica;APP=CPPServer;Encryption=off;ClientCharset=UTF-8"
+export DB1="Driver=FreeTDS;SERVER=demodb.mshome.net;PORT=1433;DATABASE=demodb;UID=sa;PWD=basica;APP=CPPServer;Encryption=off;ClientCharset=UTF-8"
 # secure mail config
 export CPP_MAIL_SERVER="smtp://smtp.gmail.com:587"
 export CPP_MAIL_USER="admin@martincordova.com"
