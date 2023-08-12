@@ -82,6 +82,15 @@ namespace server
 		std::function<void(http::request&)> _fn,
 		bool _is_secure = true
 	);
+
+	void register_webapi(
+		const webapi_path& _path, 
+		const std::string& _description, 
+		http::verb _verb, 
+		std::function<void(http::request&)> _fn,
+		bool _is_secure = true
+	);
+	
 }
 
 #endif /* SERVER_H_ */

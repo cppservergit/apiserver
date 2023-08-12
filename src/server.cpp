@@ -668,14 +668,14 @@ namespace
 namespace server
 {
 	void register_webapi(
-				const webapi_path& _path, 
-				const std::string& _description,
-				http::verb _verb,
-				const std::vector<http::input_rule>& _rules,
-				const std::vector<std::string>& _roles,
-				std::function<void(http::request&)> _fn,
-				bool _is_secure
-				)
+						const webapi_path& _path, 
+						const std::string& _description,
+						http::verb _verb,
+						const std::vector<http::input_rule>& _rules,
+						const std::vector<std::string>& _roles,
+						std::function<void(http::request&)> _fn,
+						bool _is_secure
+						)
 	{
 		webapi_catalog.insert_or_assign
 		(
@@ -693,6 +693,17 @@ namespace server
 		);
 		std::string msg {_is_secure ? " " : " (insecure) "};
 		logger::log("server", "info", "registered" + msg + "WebAPI for path: " + _path.get_path());
+	}
+
+	void register_webapi(
+						const webapi_path& _path, 
+						const std::string& _description, 
+						http::verb _verb, 
+						std::function<void(http::request&)> _fn, 
+						bool _is_secure
+						)
+	{
+		register_webapi(_path, _description, _verb, {}, {}, _fn, _is_secure);
 	}
 
 	void start() noexcept
@@ -723,7 +734,10 @@ namespace server
 		//shutdown workers
 		for (const auto& s: stops) {
 			s.request_stop();
-			m_cond.notify_all();
+			{
+				std::scoped_lock lock {m_mutex};
+				m_cond.notify_all();
+			}
 		}
 		
 		for (auto& t:pool)
