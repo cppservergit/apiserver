@@ -829,7 +829,7 @@ make
 For testing the upload feature you need to create /var/blobs on your VM and assign permissions so API-Server++ can read/write files into that directory:
 ```
 sudo mkdir /var/blobs
-chmod 777 /var/blobs
+sudo chmod 777 /var/blobs
 ```
 
 When using API-Server++ as a container on Kubernetes, volumes and volume mappings will be used to map /var/blobs to the actual storage destination on the Kubernetes Cluster. This is transparent to API-Server++.
