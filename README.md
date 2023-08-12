@@ -1095,7 +1095,22 @@ There are very few differences between the ODBC and the PgSQL version of API-Ser
 			req.response.set_body(sql::get_json_response("DB1", sql, {"customer", "orders"}));
 		}
 	);
- ```
+```
+
+A stored procedure that returns a resultset looks like this:
+```
+CREATE procedure [dbo].[sp_shippers_view] as
+begin
+	set nocount on
+		SELECT 
+			shipperid,
+			companyname,
+			phone
+		FROM 
+			shippers WITH (NOLOCK)
+end
+```
+The `set nocount on` is important.
 
 ### Running API-Server++ and connecting via ODBC
 
