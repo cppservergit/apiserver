@@ -39,6 +39,9 @@ API-Server++ was designed to be run as a container on Kubernetes, with a statele
 
 It does use the native PostgreSQL client C API `libpq` for maximum speed, as well as `libcurl` for secure email and openssl v3 for JWT signatures. It expects a JSON response from queries returning data, which is very easy to do using PostgreSQL functions.
 
+![webapi helloworld](https://github.com/cppservergit/apiserver/assets/126841556/45dedf2a-4cce-466f-a99b-6d378b7dcb5c)
+
+
 ## Requirements
 
 The test environment is Ubuntu 22.04 with GCC 12.3, we used Canonical's Multipass VMs on Windows 10 Pro, it's a very agile tool for managing lightweight VMs on Windows.
@@ -881,4 +884,241 @@ It won't read more bytes than `data.size()`.
 Therefore we can assume these warnings are not relevant and the program is memory-safe. 
 For the dynamic runtime instrumentation, the program was bombarded with 2000 concurrent connections and thousands of requests, so all code was covered (it's a simple program, not many paths of execution), and no leaks were found.
 
+## API-Server++ for ODBC
+
+There is a separate branch of this project that instead of using the native PostgreSQL driver it does use ODBC API, this way you can connect to SQL Server (ODBC driver is its native driver), Sybase or DB2.
+
+### Pre-requisites
+
+For development purposes please install these packages:
+```
+sudo apt install g++-12 libssl-dev libpq-dev libcurl4-openssl-dev libldap-dev libldap-dev unixodbc-dev tdsodbc make -y --no-install-recommends
+```
+This command will also install [FreeTDS](https://www.freetds.org/index.html) ODBC driver for SQL Server and Sybase.
+
+### Register FreeTDS driver for SQLServer and Sybase
+
+Edit odbcinst.ini
+```
+sudo nano /etc/odbcinst.ini
+```
+
+Add this content:
+```
+[FreeTDS]
+Driver=/usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so
+UsageCount=1
+```
+CTRL-X + Y to save.
+
+### Retrieve ODBC branch from GitHub
+
+If you are already using the PgSQL version of API-Server++ please use another directory to clone the ODBC branch, it's basically the same project but with two different modules, sql and login.
+```
+git clone -b odbc https://github.com/cppservergit/apiserver.git
+```
+
+To build is the same procedure:
+```
+cd apiserver
+```
+
+Compile:
+```
+make
+```
+
+### Implementing the security tables in SQL Server
+
+In order to use the basic login adapter included with API-Server++ you will need some tables and a stored procedure, you can use a new database `testdb` for this purpose, or create them on any existing database.
+
+![image](https://github.com/cppservergit/apiserver/assets/126841556/1dcbaeae-6881-457c-89b3-6cd207d3148f)
+
+The underlying tables structure is not relevant to API-Server++, it only requires the existence of a stored procedure `cpp_dblogin( @userlogin varchar(100), @userpassword varchar(100) )` that will return a resultset with 1 row and 3 columns if the login was successful: mail, displayname and rolenames, this last field should contain the roles of the user separated by ",". We provide an example of such a stored procedure for a very basic security database model, you can find its definition at the end of the script.
+
+```
+CREATE TABLE testdb.dbo.s_role (
+	role_id int IDENTITY(1,1) NOT NULL,
+	rolename varchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	CONSTRAINT PK__s_role__CD994BF27B3DC626 PRIMARY KEY (role_id)
+);
+
+CREATE TABLE testdb.dbo.s_user (
+	user_id int IDENTITY(1,1) NOT NULL,
+	userlogin varchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	passwd varchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	displayname varchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	mail varchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	CONSTRAINT PK__s_user__CBA1B25775A0F870 PRIMARY KEY (user_id),
+	CONSTRAINT s_user_UN UNIQUE (userlogin)
+);
+
+CREATE TABLE testdb.dbo.s_user_role (
+	user_role_id int IDENTITY(1,1) NOT NULL,
+	user_id int NOT NULL,
+	role_id int NOT NULL,
+	CONSTRAINT PK__s_user_r__CD994BF2DA948C68 PRIMARY KEY (role_id),
+	CONSTRAINT s_user_role_FK FOREIGN KEY (user_id) REFERENCES testdb.dbo.s_user(user_id) ON DELETE CASCADE,
+	CONSTRAINT s_user_role_FK2 FOREIGN KEY (role_id) REFERENCES testdb.dbo.s_role(role_id) ON DELETE CASCADE
+);
+
+INSERT INTO testdb.dbo.s_user
+           (userlogin, passwd, displayname, mail)
+     VALUES
+		('mcordova', 'sY1Y5lZMlyG12Kr0P4qQXOv2H50ycI63kft1e4pmoR4=', 'Martín Córdova', 'cppserver@martincordova.com'),
+        ('mbencomo', 'BiumdlzR0xeh4VUSNmHkBXn5sFLnFG0VDBx/JcJsc5Y=', 'María Eugenia Bencomo', 'cppserver@martincordova.com');
+
+
+
+INSERT INTO testdb.dbo.s_role (rolename) VALUES
+	 ('sysadmin'),
+	 ('can_delete'),
+	 ('can_update'),
+	 ('general');
+	 
+INSERT INTO testdb.dbo.s_user_role (user_id,role_id) VALUES
+	 (1,1),
+	 (1,2),
+	 (1,3),
+	 (2,4);
+
+CREATE procedure [dbo].[cpp_dblogin] ( @userlogin varchar(100), @userpassword varchar(100) ) as
+begin
+
+	DECLARE @pwd varchar(200);
+	DECLARE @encodedpwd varchar(200);
+	set @pwd = @userlogin + ':' + @userpassword;
+	
+	select distinct STRING_AGG(r.rolename, ', ') as rolenames into #roles from testdb.dbo.s_user_role ur inner join testdb.dbo.s_user u
+	on u.user_id = ur.user_id
+	inner join testdb.dbo.s_role r on r.role_id = ur.role_id
+	where u.userlogin = @userlogin;
+	
+	SET @encodedpwd = (select hashbytes('SHA2_256', @pwd) FOR XML PATH(''), BINARY BASE64);
+	set nocount on
+	
+	select mail, displayname, rolenames from testdb.dbo.s_user WITH (NOLOCK), #roles where
+	userlogin = @userlogin and passwd = @encodedpwd
+
+end;
+```
+
+### The login module
+
+The `login.h` and `login.cpp` modules in the odbc branch are specific for ODBC, as well as the `sql.h` and `sql.cpp`, but the interfaces defined in the namespaces login:: and sql:: are the same, so the rest of the code won´t be affected by different implementations.
+
+```
+namespace login
+{
+	bool bind(const std::string& login, const std::string& password);
+	std::string get_email() noexcept;
+	std::string get_display_name() noexcept;
+	std::string get_roles() noexcept;
+}
+```
+Even the `loginldap` module implements the same interface.
+
+In the case of `login.cpp` its current implementation is very simple, it depends on the expected behavior of the `cpp_dblogin` stored procedure:
+```
+	//login and password must be pre-processed for sql-injection protection
+	//expects a resultset with these columns: mail, displayname, rolenames
+	bool bind(const std::string& login, const std::string& password)
+	{
+		bool flag{false};
+		m_user.email.clear(); 
+		m_user.display_name.clear();
+		m_user.roles.clear();
+		std::string hashed_pwd;
+		std::string sql {"execute cpp_dblogin '" + login + "', '" + password + "'"};
+		
+		auto rec {sql::get_record("LOGINDB", sql)};
+		if ( rec.size() ) {
+			m_user.email = rec["mail"];
+			m_user.display_name = rec["displayname"];
+			m_user.roles = rec["rolenames"];
+			flag = true;
+		}
+		return flag;
+	}
+```
+
+The implementation of JWT (JSON Web Token) and the mechanism of checking authentication and authorization depends on the correct implementation of the login interface.
+
+#### Custom login implementations
+
+It is possible to change the implementation of the `bind()` function if you are not using hashed passwords that can be generated via SQL functions (like in this default implementation), maybe you are using BCrypt or something similar, the modifications are simple and we can provide support, just open an issue on GitHub. In the specific case of BCrypt, we already have a login implementation using a C-compiled library for BCrypt.
+
+Example using a custom `bind()` implementation and a modified stored procedure that will also return the encrypted password from the s_user table, then it will be verified using BCrypt algorithm:
+```
+	bool bind(const std::string& login, const std::string& password)
+	{
+		bool flag{false};
+		m_user.email.clear(); 
+		m_user.display_name.clear();
+		m_user.roles.clear();
+		std::string hashed_pwd;
+		std::string sql {"execute cpp_dblogin '" + login + "'"};
+		
+		auto rec {sql::get_record("LOGINDB", sql)};
+		if ( rec.size() > 0) {
+			m_user.email = rec["mail"];
+			m_user.display_name = rec["displayname"];
+			m_user.roles = rec["rolenames"];
+			hashed_pwd = rec["password"];
+
+			//test password
+			int ret = bcrypt_checkpw(password.c_str(), hashed_pwd.c_str());
+			if (ret == 0) {
+				flag = true;
+			}			
+		}
+		return flag;
+	}
+```
+In this case login.h also changes to include the header of the bcrypt library, the rest remains the same, it's the same interface, only the internal implementation changes, down to the stored procedure.
+
+### Retrieving JSON
+
+There are very few differences between the ODBC and the PgSQL version of API-Server++, mainly in the `sql` module, because PgSQL is very powerful returning JSON straight from the database, and API-Server++ takes advantage of that. With the ODBC version the `sql` module has the same interface, but in the implementation, it retrieves the resultset from the database and proceeds to assemble the JSON response in memory, there is also an overload of the `sql::get_json_response()` for the cases when multiple resultsets are returned, here is an example that returns customer and orders in a single JSON response:
+
+```
+	server::register_webapi
+	(
+		server::webapi_path("/api/customer/info"), 
+		"Retrieve customer record and the list of his purchase orders",
+		http::verb::GET, 
+		{{"customerid", http::field_type::STRING, true}}, 	
+		{"customer_access", "sysadmin"},
+		[](http::request& req)
+		{
+			auto sql {req.get_sql("execute sp_customer_info $customerid")};
+			req.response.set_body(sql::get_json_response("DB1", sql, {"customer", "orders"}));
+		}
+	);
+ ```
+
+### Running API-Server++ and connecting via ODBC
+
+In the apiserver directory, make the script executable
+```
+chmod +x run
+```
+
+Edit the run script
+```
+nano run
+```
+
+Locate these lines and change attributes according to your environment:
+```
+# ODBC SQL authenticator config
+export CPP_LOGINDB="Driver=FreeTDS;SERVER=demodb.mshome.net;PORT=1433;DATABASE=testdb;UID=sa;PWD=basica;APP=CPPServer;Encryption=off;ClientCharset=UTF-8"
+# ODBC SQL data sources
+export CPP_DB1="Driver=FreeTDS;SERVER=demodb.mshome.net;PORT=1433;DATABASE=demodb;UID=sa;PWD=basica;APP=CPPServer;Encryption=off;ClientCharset=UTF-8"
+```
+CPP_LOGINDB is the database where the security tables and the stored procedure `cpp_dblogin` reside.
+
+## Differences between PostgreSQL and ODBC versions
+
+In PostgreSQL the SQL functions return JSON from queries, except for specific cases that return a single record as a resultset, in ODBC the stored procedures will return resultsets, API-Server++ ODBC can only invoke stored procedures that return resultsets or return nothing, it does not support output parameters, only resultsets. For the PgSQL version, the rule is to return JSON or return nothing, also in this version only SQL functions return JSON, invoking a stored procedure won't return anything because PgSQL can only return resultsets from an SQL function.
 
