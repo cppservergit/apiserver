@@ -1135,5 +1135,4 @@ CPP_LOGINDB is the database where the security tables and the stored procedure `
 
 ## Differences between PostgreSQL and ODBC versions
 
-In PostgreSQL the SQL functions return JSON from queries, except for specific cases that return a single record as a resultset, in ODBC the stored procedures will return resultsets, API-Server++ ODBC can only invoke stored procedures that return resultsets or return nothing, it does not support output parameters, only resultsets. For the PgSQL version, the rule is to return JSON or return nothing, also in this version only SQL functions return JSON, invoking a stored procedure won't return anything because PgSQL can only return resultsets from an SQL function.
-
+In PostgreSQL the SQL functions return JSON from queries, except for specific cases that return a single record as a resultset, in ODBC the stored procedures will return resultsets, API-Server++ ODBC can only invoke stored procedures that return resultsets or return nothing, it does not support output parameters, only resultsets. For the PgSQL version, the rule is to return JSON, a single-row resultset, or return nothing, only SQL functions return JSON or resultsets in PgSQL, invoking a stored procedure won't return anything because PgSQL can only return resultsets from an SQL function.
