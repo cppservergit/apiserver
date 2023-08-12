@@ -40,7 +40,7 @@ namespace login
 	}
 		
 	//login and password must be pre-processed for sql-injection protection
-	//expects a resultset with these columns: mail, displayname, roles, password
+	//expects a resultset with these columns: mail, displayname, roles
 	bool bind(const std::string& login, const std::string& password)
 	{
 		bool flag{false};
