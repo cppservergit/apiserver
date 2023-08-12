@@ -39,6 +39,9 @@ API-Server++ was designed to be run as a container on Kubernetes, with a statele
 
 It does use the native PostgreSQL client C API `libpq` for maximum speed, as well as `libcurl` for secure email and openssl v3 for JWT signatures. It expects a JSON response from queries returning data, which is very easy to do using PostgreSQL functions.
 
+![webapi helloworld](https://github.com/cppservergit/apiserver/assets/126841556/45dedf2a-4cce-466f-a99b-6d378b7dcb5c)
+
+
 ## Requirements
 
 The test environment is Ubuntu 22.04 with GCC 12.3, we used Canonical's Multipass VMs on Windows 10 Pro, it's a very agile tool for managing lightweight VMs on Windows.
@@ -1018,7 +1021,7 @@ Even the `loginldap` module implements the same interface.
 In the case of `login.cpp` its current implementation is very simple, it depends on the expected behavior of the `cpp_dblogin` stored procedure:
 ```
 	//login and password must be pre-processed for sql-injection protection
-	//expects a resultset with these columns: mail, displayname, roles
+	//expects a resultset with these columns: mail, displayname, rolenames
 	bool bind(const std::string& login, const std::string& password)
 	{
 		bool flag{false};
@@ -1045,4 +1048,77 @@ The implementation of JWT (JSON Web Token) and the mechanism of checking authent
 
 It is possible to change the implementation of the `bind()` function if you are not using hashed passwords that can be generated via SQL functions (like in this default implementation), maybe you are using BCrypt or something similar, the modifications are simple and we can provide support, just open an issue on GitHub. In the specific case of BCrypt, we already have a login implementation using a C-compiled library for BCrypt.
 
+Example using a custom `bind()` implementation and a modified stored procedure that will also return the encrypted password from the s_user table, then it will be verified using BCrypt algorithm:
+```
+	bool bind(const std::string& login, const std::string& password)
+	{
+		bool flag{false};
+		m_user.email.clear(); 
+		m_user.display_name.clear();
+		m_user.roles.clear();
+		std::string hashed_pwd;
+		std::string sql {"execute cpp_dblogin '" + login + "'"};
+		
+		auto rec {sql::get_record("LOGINDB", sql)};
+		if ( rec.size() > 0) {
+			m_user.email = rec["mail"];
+			m_user.display_name = rec["displayname"];
+			m_user.roles = rec["rolenames"];
+			hashed_pwd = rec["password"];
+
+			//test password
+			int ret = bcrypt_checkpw(password.c_str(), hashed_pwd.c_str());
+			if (ret == 0) {
+				flag = true;
+			}			
+		}
+		return flag;
+	}
+```
+In this case login.h also changes to include the header of the bcrypt library, the rest remains the same, it's the same interface, only the internal implementation changes, down to the stored procedure.
+
+### Retrieving JSON
+
+There are very few differences between the ODBC and the PgSQL version of API-Server++, mainly in the `sql` module, because PgSQL is very powerful returning JSON straight from the database, and API-Server++ takes advantage of that. With the ODBC version the `sql` module has the same interface, but in the implementation, it retrieves the resultset from the database and proceeds to assemble the JSON response in memory, there is also an overload of the `sql::get_json_response()` for the cases when multiple resultsets are returned, here is an example that returns customer and orders in a single JSON response:
+
+```
+	server::register_webapi
+	(
+		server::webapi_path("/api/customer/info"), 
+		"Retrieve customer record and the list of his purchase orders",
+		http::verb::GET, 
+		{{"customerid", http::field_type::STRING, true}}, 	
+		{"customer_access", "sysadmin"},
+		[](http::request& req)
+		{
+			auto sql {req.get_sql("execute sp_customer_info $customerid")};
+			req.response.set_body(sql::get_json_response("DB1", sql, {"customer", "orders"}));
+		}
+	);
+ ```
+
+### Running API-Server++ and connecting via ODBC
+
+In the apiserver directory, make the script executable
+```
+chmod +x run
+```
+
+Edit the run script
+```
+nano run
+```
+
+Locate these lines and change attributes according to your environment:
+```
+# ODBC SQL authenticator config
+export CPP_LOGINDB="Driver=FreeTDS;SERVER=demodb.mshome.net;PORT=1433;DATABASE=testdb;UID=sa;PWD=basica;APP=CPPServer;Encryption=off;ClientCharset=UTF-8"
+# ODBC SQL data sources
+export CPP_DB1="Driver=FreeTDS;SERVER=demodb.mshome.net;PORT=1433;DATABASE=demodb;UID=sa;PWD=basica;APP=CPPServer;Encryption=off;ClientCharset=UTF-8"
+```
+CPP_LOGINDB is the database where the security tables and the stored procedure `cpp_dblogin` reside.
+
+## Differences between PostgreSQL and ODBC versions
+
+In PostgreSQL the SQL functions return JSON from queries, except for specific cases that return a single record as a resultset, in ODBC the stored procedures will return resultsets, API-Server++ ODBC can only invoke stored procedures that return resultsets or return nothing, it does not support output parameters, only resultsets. For the PgSQL version, the rule is to return JSON or return nothing, also in this version only SQL functions return JSON, invoking a stored procedure won't return anything because PgSQL can only return resultsets from an SQL function.
 
