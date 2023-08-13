@@ -148,7 +148,7 @@ export CPP_HTTP_LOG=1
 export CPP_PORT=8080
 export CPP_POOL_SIZE=4
 # JWT config
-export CPP_JWT_PASSWORD="basica"
+export CPP_JWT_SECRET="basica"
 export CPP_JWT_EXP=600
 # PGSQL authenticator config
 export CPP_LOGINDB="host=demodb.mshome.net port=5432 dbname=testdb connect_timeout=10 user=postgres password=basica application_name=CPPServer"
