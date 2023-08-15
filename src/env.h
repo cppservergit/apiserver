@@ -21,6 +21,7 @@ namespace env
 	unsigned short int http_log_enabled() noexcept;
 	unsigned short int pool_size() noexcept;
 	unsigned short int login_log_enabled() noexcept;
+	unsigned short int jwt_expiration() noexcept;
 	std::string get_str(std::string name) noexcept;
 }
 
