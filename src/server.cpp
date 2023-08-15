@@ -349,7 +349,7 @@ namespace
 		epoll_ctl(epoll_fd, EPOLL_CTL_ADD, m_signal, &event_signal);
 
 		std::unordered_map<int, http::request> buffers;
-		std::array<char, 8192> data{};
+		std::array<char, 8192> data;
 		const int MAXEVENTS = 64;
 		epoll_event events[MAXEVENTS];
 		bool exit_loop {false};
@@ -406,7 +406,7 @@ namespace
 					//store pointer to request object
 					epoll_event event;
 					if (buffers.contains(fd)) {
-						http::request& req {buffers[fd]};
+						http::request& req = buffers[fd];
 						req.remote_ip = std::string(remote_ip);
 						req.fd = fd;
 						req.epoll_fd = epoll_fd;
@@ -517,6 +517,7 @@ namespace
 		logger::log("env", "info", "pool size: " + std::to_string(env::pool_size()));
 		logger::log("env", "info", "login log: " + std::to_string(env::login_log_enabled()));
 		logger::log("env", "info", "http log: " + std::to_string(env::http_log_enabled()));
+		logger::log("env", "info", "jwt exp: " + std::to_string(env::jwt_expiration()));
 		
 		std::string msg1; msg1.reserve(255);
 		std::string msg2; msg1.reserve(255);
@@ -706,6 +707,35 @@ namespace server
 		register_webapi(_path, _description, _verb, {}, {}, _fn, _is_secure);
 	}
 
+	void send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body)
+	{
+		send_mail(to, cc, subject, body, "", "");
+	}
+
+	void send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body, const std::string& attachment, const std::string& attachment_filename)
+	{
+		//capture current thread value before launching new thread
+		auto x_request_id = logger::get_request_id(); 
+		
+		std::jthread task ( [=]() {
+			smtp::mail m(env::get_str("CPP_MAIL_SERVER"), env::get_str("CPP_MAIL_USER"), env::get_str("CPP_MAIL_PWD"));
+			m.x_request_id = x_request_id; 
+			m.to = to;
+			m.cc = cc;
+			m.subject = subject;
+			m.body = body;
+			if (!attachment.empty()) {
+				std::string path {attachment.starts_with("/") ? attachment : "/var/blobs/" + attachment};
+				if (!attachment_filename.empty())
+					m.add_attachment(path, attachment_filename);
+				else
+					m.add_attachment(path);
+			}
+			m.send();
+		} );
+		task.detach();
+	}
+		
 	void start() noexcept
 	{
 		prebuilt_services();

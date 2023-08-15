@@ -190,6 +190,7 @@ namespace http
 		void enforce(const std::string& id, const std::string& error_description, std::function<bool()> fn);
 		std::string get_sql(std::string sql, const std::string& userlogin = "");
 		void check_security(const std::vector<std::string>& roles = {});
+		std::string get_mail_body(const std::string& template_file, const std::string& userlogin = "Undefined");
 	  private:
 		std::string_view get_cookie(std::string_view cookieHdr);
 		std::string lowercase(std::string s) noexcept;	

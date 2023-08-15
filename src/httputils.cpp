@@ -769,4 +769,35 @@ namespace http
 		}
 	}
 
+	std::string request::get_mail_body(const std::string& template_file, const std::string& userlogin)
+	{
+		std::string path {"/var/mail/" + template_file};
+		std::stringstream buffer;
+		{
+			std::ifstream file(path);
+			if (file.is_open())
+				buffer << file.rdbuf();
+			else {
+				throw resource_not_found_exception("mail body template not found: " + path);
+			}
+		}
+		std::string body {buffer.str()};
+		if (std::size_t pos = body.find("$userlogin"); pos != std::string::npos)
+			body.replace(pos, std::string("$userlogin").length(), userlogin);
+		if (input_rules.size() == 0)
+			return body;
+		for (const auto& p:input_rules)
+		{
+			std::string name {"$" + p.get_name()};
+			if (std::size_t pos = body.find(name); pos != std::string::npos) {
+				auto& value = params[p.get_name()];
+				if (value.empty()) 
+					body.replace(pos, name.length(), "");
+				else
+					body.replace(pos, name.length(), value);
+			}
+		}
+		return body;
+	}
+
 }

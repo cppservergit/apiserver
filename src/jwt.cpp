@@ -4,8 +4,16 @@ namespace
 {
 	const std::string LOGGER_SRC {"jwt"};
 	
-	std::string m_password {"basica"};
-	int m_duration = 600;
+	struct jwt_config {
+		std::string secret;
+		unsigned short int duration;
+		jwt_config() {
+			duration = env::jwt_expiration();
+			secret = env::get_str("CPP_JWT_SECRET");
+			if (secret.empty())
+				logger::log(LOGGER_SRC, "error", "environment variable CPP_JWT_SECRET not defined");
+		}
+	};
 	
 	struct user_info 
 	{
@@ -175,28 +183,22 @@ namespace jwt
 	
 	std::string get_token(const std::string& userlogin, const std::string& mail, const std::string& roles) noexcept
 	{
+		static jwt_config config;
+		time_t now; time(&now); now += config.duration;
 		std::string json_header {R"({"alg":"HS256","typ":"JWT"})"};
-		std::string json_payload {R"({"login":"$userlogin","mail":"$mail","roles":"$roles","exp":$exp})"};
-		std::string marker {"$userlogin"};
-		json_payload.replace(json_payload.find(marker), marker.size(), userlogin);
-		marker = "$mail";
-		json_payload.replace(json_payload.find(marker), marker.size(), mail);
-		marker = "$roles";
-		json_payload.replace(json_payload.find(marker), marker.size(), roles);
-		marker = "$exp";
-		time_t now; time(&now); now += m_duration;
-		json_payload.replace(json_payload.find(marker), marker.size(), std::to_string(now));
+		std::string json_payload {"{\"login\":\"" + userlogin + "\",\"mail\":\"" + mail + "\",\"roles\":\"" + roles + "\",\"exp\":" + std::to_string(now) + "}"};
 		std::string buffer {base64_encode(json_header) + "." + base64_encode(json_payload)};
-		auto signature {sign(buffer, m_password)};
+		auto signature {sign(buffer, config.secret)};
 		return buffer.append(".").append(signature);
 	}
 	
 	bool is_valid(const std::string& token)	
 	{
+		static jwt_config config;
 		t_user_info.clear();
 		auto jt {parse(token)};
 		const std::string test{jt.header_encoded + "." + jt.payload_encoded};
-		if (jt.signature != sign(test, m_password))
+		if (jt.signature != sign(test, config.secret))
 			return false;
 		parse_payload(jt.payload);
 		time_t now; time(&now);

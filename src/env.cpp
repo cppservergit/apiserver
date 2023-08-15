@@ -6,20 +6,16 @@ namespace
 	
 	struct env_vars 
 	{
-			env_vars();
 			unsigned short int read_env(const char* name, unsigned short int default_value) noexcept;
 			unsigned short int port{read_env("CPP_PORT", 8080)};
 			unsigned short int http_log{read_env("CPP_HTTP_LOG", 0)};
 			unsigned short int login_log{read_env("CPP_LOGIN_LOG", 0)};
 			unsigned short int pool_size{read_env("CPP_POOL_SIZE", 4)};
+			unsigned short int jwt_expiration{read_env("CPP_JWT_EXP", 600)};
 	};	
-	
+
 	env_vars ev;
 	
-	env_vars::env_vars() 
-	{
-	}
-
 	unsigned short int env_vars::read_env(const char* name, unsigned short int default_value) noexcept
 	{
 		unsigned short int value{default_value};
@@ -57,4 +53,8 @@ namespace env
 
 	unsigned short int login_log_enabled() noexcept 
 	{ return ev.login_log; }
+
+	unsigned short int jwt_expiration() noexcept 
+	{ return ev.jwt_expiration; }
+
 }
