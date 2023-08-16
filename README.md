@@ -805,6 +805,64 @@ This API will invoke a stored procedure to delete a record, but instead of waiti
 ```
 The `req.enforce()` method evaluates the result of the passed code (validator), if false then stops execution of the API and the client will receive a JSON response with status INVALID and the fields passed to this method (first two arguments). In this example, the validator checks if this category ID is being used in another table, the SQL logic for this is encapsulated in the fn_categ_in_use() function, which does not return JSON but a regular resultset, the `sql::has_rows()` returns true if the resultset contains at least 1 row. This example shows how custom validation/pre-condition rules can be applied inside an API, and if any of these custom validators return false then the rest of the code won't be executed, that's the guarantee enforced by API-Server++.
 
+### Sending email
+
+API-Server++ uses libcurl to send mail with secure SMTP (TLS), this has been tested with GMail's server using a google workspace account. In order to use this feature you have to configure the corresponding environment variables with correct values (edit the `run` bash script):
+```
+# secure mail config
+export CPP_MAIL_SERVER="smtp://smtp.gmail.com:587"
+export CPP_MAIL_USER="admin@martincordova.com"
+export CPP_MAIL_PWD="your-smtp-password"
+```
+The server:: module provides several functions to send mail with more or less arguments (CC, attachments, etc) to make the code simpler if possible.
+Example of simple invocation without CC and no attachment:
+```
+	server::register_webapi
+	(
+		server::webapi_path("/api/gasto/add"), 
+		"Add expense record",
+		http::verb::POST, 
+		{
+			{"fecha", http::field_type::DATE, true},
+			{"categ_id", http::field_type::INTEGER, true},
+			{"monto", http::field_type::DOUBLE, true},
+			{"motivo", http::field_type::STRING, true}			
+		},
+		{},
+		[](http::request& req) 
+		{
+			sql::exec_sql("DB1", req.get_sql("call sp_gasto_insert($fecha, $categ_id, $monto, $motivo)"));
+			req.response.set_body("{\"status\": \"OK\"}");
+			server::send_mail(
+					jwt::user_get_mail(), //TO
+					"Document uploaded via API-Server++",
+					req.get_mail_body("expenditure-msg.html", jwt::user_get_login())
+				);			
+		}
+	);
+```
+You can obtain the current user email using `jwt::user_get_mail()` as well as its login name. The body of the message must be an HTML document, you provide it, it must be stored in /var/mail, it can contain parameter markers corresponding to the input fields, these are used like in the SQL template: $fieldname. The function `request::get_mail_body()` takes care of loading the template and injecting input fields if necessary.
+
+There is a variant of the `server::send_mail()` function that accepts a CC argument:
+```
+void send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body);
+```
+
+The code below sends an email with an attachment:
+```
+			server::send_mail(
+					jwt::user_get_mail(), //TO
+					"", //CC - can be empty
+					"Document uploaded via API-Server++",
+					req.get_mail_body("upload-msg.html", jwt::user_get_login()),
+					req.get_param("document"), //attachment
+					req.get_param("filename") //original filename
+				);	
+```
+In this particular case, a file was uploaded using API-Server++ automatic upload facility, it does store the file with a unique UUID name in a storage area using the path `/var/blobs`, on Kubernetes this is only a path mapped to a shared storage service, when running native on Linux this may be the actual directory or an NFS mount.
+The `req.get_param("document")` call returns the UUID name of the uploaded file, we also provide the original filename so the attachment will be properly named inside the mail. If we use an absolute path like "/mydir/mufile.pdf" then the `server::send_mail` won't assume this is a blob, it will try to load the file from the path provided and the last parameter can be passed as an empty string `""`.
+The example above was tailored to the case of blob uploads, where files are stored in a directory mapped to `/var/blobs` using an auto-generated UUID as the file name and the rest of the parameters are stored in a table using a stored procedure, you may want to create a sort of feedback sending an email notifying the occurrence of the upload, the uploaded file and its basic information (title, size, etc).
+
 ## Demo App
 
 There is a complete Demo case, frontend and backend, you should download both in order to play with it:
