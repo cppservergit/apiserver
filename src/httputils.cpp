@@ -799,5 +799,27 @@ namespace http
 		}
 		return body;
 	}
+	
+	std::string request::replace_params(const std::string& template_file)
+	{
+		std::string body {template_file};
+		if (std::size_t pos = body.find("$userlogin"); pos != std::string::npos)
+			body.replace(pos, std::string("$userlogin").length(), jwt::user_get_login());
+		if (input_rules.size() == 0)
+			return body;
+		for (const auto& p:input_rules)
+		{
+			std::string name {"$" + p.get_name()};
+			if (std::size_t pos = body.find(name); pos != std::string::npos) {
+				auto& value = params[p.get_name()];
+				if (value.empty()) 
+					body.replace(pos, name.length(), "");
+				else
+					body.replace(pos, name.length(), value);
+			}
+		}
+		return body;
+	}
+	
 
 }

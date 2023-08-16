@@ -92,6 +92,7 @@ namespace server
 		bool _is_secure = true
 	);
 	
+	void send_mail(const std::string& to, const std::string& subject, const std::string& body);
 	void send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body);
 	void send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body, const std::string& attachment, const std::string& attachment_filename = "");
 }

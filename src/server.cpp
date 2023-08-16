@@ -707,6 +707,11 @@ namespace server
 		register_webapi(_path, _description, _verb, {}, {}, _fn, _is_secure);
 	}
 
+	void send_mail(const std::string& to, const std::string& subject, const std::string& body)
+	{
+		send_mail(to, "", subject, body, "", "");
+	}
+
 	void send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body)
 	{
 		send_mail(to, cc, subject, body, "", "");

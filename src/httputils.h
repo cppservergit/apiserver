@@ -191,6 +191,7 @@ namespace http
 		std::string get_sql(std::string sql, const std::string& userlogin = "");
 		void check_security(const std::vector<std::string>& roles = {});
 		std::string get_mail_body(const std::string& template_file, const std::string& userlogin = "Undefined");
+		std::string replace_params(const std::string& template_msg);
 	  private:
 		std::string_view get_cookie(std::string_view cookieHdr);
 		std::string lowercase(std::string s) noexcept;	
