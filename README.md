@@ -814,7 +814,11 @@ export CPP_MAIL_SERVER="smtp://smtp.gmail.com:587"
 export CPP_MAIL_USER="admin@martincordova.com"
 export CPP_MAIL_PWD="your-smtp-password"
 ```
-The server:: module provides several functions to send mail with more or less arguments (CC, attachments, etc) to make the code simpler if possible.
+
+A new thread will be used to send the email, this way your function returns immediately without blocking the thread that's executing your API function, and the server can send the response to the client and keep processing requests. Any error returned by `libcurl` will be recorded in the logs. It's recommended practice to invoke the `send_mail()` function after executing your database I/O and the `set_body()` function. If any error occurs doing I/O, the `send_mail()` will never be called. Mail delivery errors will be probably notified to the remittent, that is the address configured in the `CPP_MAIL_USER` environment variable.
+
+The server:: module provides several functions to send a mail with more or fewer arguments (CC, attachments, etc) to make the code simpler if possible.
+
 Example of simple invocation without CC and no attachment:
 ```
 	server::register_webapi
