@@ -220,7 +220,7 @@ Expected output:
 
 Test login API (tables s_user, s_role and s_user_role store the security configuration in the public schema of testdb):
 ```
-curl localhost:8080/api/login -F "login=mcordova" -F "password=basica"
+curl localhost:8080/api/login -F "username=mcordova" -F "password=basica"
 ```
 
 Expected output (token will vary):
@@ -328,7 +328,7 @@ Now starting the log output (2nd line) you should see this line:
 Now that the API-Server++ is running again and your API has been published, let's test it with CURL in the 2nd terminal we used before, first, we need to login to obtain a [JWT token](https://jwt.io/introduction), otherwise, any attempt to invoke your API will be rejected with HTTP status code 401 (login required error).
 
 ```
-curl localhost:8080/api/login -F "login=mcordova" -F "password=basica"
+curl localhost:8080/api/login -F "username=mcordova" -F "password=basica"
 ```
 
 Expected output:
@@ -413,7 +413,7 @@ Now that we verified that the connection to API-Server++ is OK, let's create an 
 	onload = async function() {
 		//login
 		const loginForm = new FormData();
-		loginForm.append("login", "mcordova");
+		loginForm.append("username", "mcordova");
 		loginForm.append("password", "basica");
 		//call and wait for login to return
 		await call_api("/api/login", function(json) {
