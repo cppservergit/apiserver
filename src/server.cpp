@@ -636,13 +636,13 @@ namespace
 			"Return metrics in Prometheus format",
 			http::verb::POST, 
 			{
-				{"login", http::field_type::STRING, true},
+				{"username", http::field_type::STRING, true},
 				{"password", http::field_type::STRING, true}
 			},
 			{} /* roles */,
 			[](http::request& req) 
 			{
-				std::string login{req.get_param("login")};
+				std::string login{req.get_param("username")};
 				std::string password{req.get_param("password")};
 				if (login::bind(login, password)) {
 					//return JWT token according to: https://openid.net/specs/openid-connect-core-1_0.html section 3.1.3.3
