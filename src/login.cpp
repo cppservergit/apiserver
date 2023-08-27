@@ -26,15 +26,15 @@ namespace login
 		return result;
 	}
 	
-	std::string login_result::get_email() noexcept {
+	std::string login_result::get_email() const noexcept {
 		return email;
 	}
 
-	std::string login_result::get_display_name() noexcept {
+	std::string login_result::get_display_name() const noexcept {
 		return display_name;
 	}
 
-	std::string login_result::get_roles() noexcept {
+	std::string login_result::get_roles() const noexcept {
 		return roles;
 	}
 		
@@ -45,7 +45,7 @@ namespace login
 		thread_local dbutil db;
 		std::string sql {"select * from cpp_dblogin('" + login + "', '" + password + "')"};
 		if (auto rec {sql::get_record("LOGINDB", sql)}; rec.size()) {
-			return login_result {true, rec["displayname"], rec["email"], rec["rolenames"]};;
+			return login_result {true, rec["displayname"], rec["email"], rec["rolenames"]};
 		} else
 			return login_result{false, "", "", ""};
 	}

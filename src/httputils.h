@@ -34,6 +34,7 @@ namespace http
 {
 	const std::string blob_path {"/var/blobs/"};
 	
+	std::string get_uuid() noexcept;
 	std::string get_content_type(const std::string& filename) noexcept;
 	std::string get_response_date() noexcept;
 

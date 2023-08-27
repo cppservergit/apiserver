@@ -73,23 +73,6 @@ namespace
 		}
 	}	
 
-	std::string get_uuid() noexcept 
-	{
-		std::random_device r;
-		std::default_random_engine eng{r()};
-		std::uniform_int_distribution dist{0, 15};
-		constexpr auto v {"0123456789abcdef"};
-		constexpr std::array<bool, 16> dash { false, false, false, false, true, false, true, false, true, false, true, false, false, false, false, false };
-
-		std::string res;
-		for (const auto& c: dash) {
-			if (c) res += "-";
-			res += v[dist(eng)];
-			res += v[dist(eng)];
-		}
-		return res;
-	}
-
 	void save_blob(const std::string& filename, const std::string& content) noexcept 
 	{
 		std::ofstream ofs(filename, std::ios::binary);
@@ -110,6 +93,23 @@ namespace
 
 namespace http
 {
+	std::string get_uuid() noexcept 
+	{
+		std::random_device r;
+		std::default_random_engine eng{r()};
+		std::uniform_int_distribution dist{0, 15};
+		constexpr auto v {"0123456789abcdef"};
+		constexpr std::array<bool, 16> dash { false, false, false, false, true, false, true, false, true, false, true, false, false, false, false, false };
+
+		std::string res;
+		for (const auto& c: dash) {
+			if (c) res += "-";
+			res += v[dist(eng)];
+			res += v[dist(eng)];
+		}
+		return res;
+	}
+
 	std::string get_response_date() noexcept
 	{
 		std::array<char, 32> buf;
@@ -566,7 +566,7 @@ namespace http
 			if (value.contains("%"))
 				params.try_emplace(std::string{name}, decode_param(value));
 			else
-				params.try_emplace(std::string{name}, std::string{value});
+				params.try_emplace(std::string{name}, value);
 		}		
 	}
 

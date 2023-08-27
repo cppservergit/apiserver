@@ -23,9 +23,9 @@ namespace login
 	{
 		public:
 			login_result(bool _result, const std::string& _name, const std::string& _mail,const std::string& _roles) noexcept;
-			std::string get_email() noexcept;
-			std::string get_display_name() noexcept;
-			std::string get_roles() noexcept;
+			std::string get_email() const noexcept;
+			std::string get_display_name() const noexcept;
+			std::string get_roles() const noexcept;
 			bool ok() noexcept;
 		private:
 			bool result;

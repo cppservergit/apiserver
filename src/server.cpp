@@ -316,10 +316,6 @@ namespace
 			//---processing task (run microservice)
 			http_server(params.req);
 			
-			//request ready, set epoll fd for output
-			#ifdef DEBUG
-				logger::log("epoll", "DEBUG", "task finished, consumer thread setting epoll mode to epollout FD: " + std::to_string(params.req.fd), true);
-			#endif			
 			epoll_event event;
 			event.events = EPOLLOUT | EPOLLET | EPOLLRDHUP;
 			event.data.ptr = &params.req;
@@ -598,9 +594,11 @@ namespace
 				std::string password{req.get_param("password")};
 				if (auto lr {login::bind(login, password)}; lr.ok()) {
 					//return JWT token
-					std::string token {jwt::get_token(login, lr.get_email(), lr.get_roles())};
-					std::string login_ok {"{\"status\":\"OK\",\"data\":[{\"displayname\":\"" + lr.get_display_name() + "\"," + 
-					"\"token_type\":\"bearer\",\"id_token\":\"" + token + "\"}]}"};
+					const std::string token {jwt::get_token(login, lr.get_email(), lr.get_roles())};
+					
+					const std::string login_ok { R"({"status":"OK","data":[{"displayname":")" + lr.get_display_name() + R"(",)" + 
+					R"("token_type":"bearer","id_token":")" + token + R"("}]})"};
+					
 					req.response.set_body(login_ok);
 					if (env::login_log_enabled())
 						logger::log("security", "info", "login OK - user: " + login 
@@ -609,7 +607,7 @@ namespace
 						+ " roles: " + lr.get_roles(), true);
 				} else {
 					logger::log("security", "warn", "login failed - user: " + login + " IP: " + req.remote_ip, true);
-					std::string invalid_login = R"({"status": "INVALID", "validation": {"id": "login", "description": "err.invalidcredentials"}})";
+					const std::string invalid_login = R"({"status": "INVALID", "validation": {"id": "login", "description": "err.invalidcredentials"}})";
 					req.response.set_body(invalid_login);
 				}
 			},

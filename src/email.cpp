@@ -30,11 +30,11 @@ namespace smtp
 		body.append("\r\n");
 		
 		std::vector<std::string> mail_headers {
-			std::string("Date: " + get_response_date()),
+			std::string("Date: " + http::get_response_date()),
 			"To: " + to,
 			"From: " + username,
 			"Cc: " + cc,
-			std::string("Message-ID: <" + get_uuid() + domain + ">"),
+			std::string("Message-ID: <" + http::get_uuid() + domain + ">"),
 			"Subject: " + subject
 		};
 
@@ -93,31 +93,5 @@ namespace smtp
 		documents.push_back(doc);
 	}
 
-	std::string mail::get_uuid() const noexcept 
-	{
-		std::random_device r;
-		std::default_random_engine eng{r()};
-		std::uniform_int_distribution dist{0, 15};
-		constexpr auto v {"0123456789abcdef"};
-		constexpr std::array<bool, 16> dash { false, false, false, false, true, false, true, false, true, false, true, false, false, false, false, false };
-
-		std::string res;
-		for (const auto& c: dash) {
-			if (c) res += "-";
-			res += v[dist(eng)];
-			res += v[dist(eng)];
-		}
-		return res;
-
-	}
-
-	std::string mail::get_response_date() const noexcept
-	{
-		auto now = std::chrono::system_clock::now();
-		auto t = std::chrono::system_clock::to_time_t(now);
-		std::stringstream fmt;
-		fmt << std::put_time(std::localtime(&t), "%a, %d %b %Y %H:%M:%S GMT") << "\n";
-		return  fmt.str();
-	}
 	
 }

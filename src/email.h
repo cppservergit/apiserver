@@ -19,6 +19,7 @@
 #include <sstream>
 #include <array>
 #include "logger.h"
+#include "httputils.h"
 
 namespace smtp
 {
@@ -60,9 +61,6 @@ namespace smtp
 				std::string encoding{"base64"};
 			};
 			std::vector<attachment> documents;
-
-			std::string get_uuid() const noexcept; 
-			std::string get_response_date() const noexcept;
 	};
 }
 
