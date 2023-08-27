@@ -95,7 +95,8 @@ namespace smtp
 
 	std::string mail::get_uuid() const noexcept 
 	{
-		std::default_random_engine eng;
+		std::random_device r;
+		std::default_random_engine eng{r()};
 		std::uniform_int_distribution dist{0, 15};
 		constexpr auto v {"0123456789abcdef"};
 		constexpr std::array<bool, 16> dash { false, false, false, false, true, false, true, false, true, false, true, false, false, false, false, false };
