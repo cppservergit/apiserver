@@ -26,7 +26,7 @@ namespace login
 			std::string get_email() const noexcept;
 			std::string get_display_name() const noexcept;
 			std::string get_roles() const noexcept;
-			bool ok() noexcept;
+			bool ok() const noexcept;
 		private:
 			bool result;
 			std::string display_name;

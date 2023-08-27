@@ -113,7 +113,8 @@ namespace http
 	std::string get_response_date() noexcept
 	{
 		std::array<char, 32> buf;
-		time_t now = time(nullptr);
+		//time_t now = time(nullptr);
+		auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());		
 		std::tm tm{};
 		gmtime_r(&now, &tm);
 		strftime(buf.data(), buf.size(), "%a, %d %b %Y %H:%M:%S GMT", &tm);

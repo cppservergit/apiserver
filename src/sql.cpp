@@ -76,32 +76,32 @@ namespace
 		return dbconns[dbname].conn;
 	}
 
-	void reset(const std::string& dbname) noexcept
+	void retry(const std::string& dbname, PGconn* conn, int& retries, const std::string& sql)
 	{
-		dbconns[dbname].reset_connection();
+		if ( PQstatus(conn) == CONNECTION_BAD ) {
+			if (retries == max_retries) {
+				std::string error_message{"cannot connect to database: " + dbname};
+				throw std::runtime_error(error_message);
+			} else {
+				retries++;
+				dbconns[dbname].reset_connection();
+			}
+		} else {
+			std::string error {get_error(conn) + " sql: " + sql};
+			throw std::runtime_error(error);
+		}		
 	}
 
 	template<typename T, class FN>
 	T db_exec(const std::string& dbname, const std::string& sql, FN func) {
 		int retries {0};
 		while (true) {
-			PGconn *conn = getdb(dbname);
-			PGresult *res = PQexec(conn, sql.c_str());
+			PGconn* conn = getdb(dbname);
+			PGresult* res = PQexec(conn, sql.c_str());
 			auto status {PQresultStatus(res)};
 			if (status != PGRES_COMMAND_OK && status != PGRES_TUPLES_OK) {
 				PQclear(res);
-				if ( PQstatus(conn) == CONNECTION_BAD ) {
-					if (retries == max_retries) {
-						std::string error_message{"cannot connect to database: " + dbname};
-						throw std::runtime_error(error_message);
-					} else {
-						retries++;
-						reset(dbname);
-					}
-				} else {
-					std::string error {get_error(conn) + " sql: " + sql};
-					throw std::runtime_error(error);
-				}
+				retry(dbname, conn, retries, sql);
 			} else {
 				return func(res);
 			}

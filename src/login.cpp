@@ -22,7 +22,7 @@ namespace login
 				: result{_result}, display_name{_name}, email{_mail}, roles{_roles}
 	{ }
 			
-	bool login_result::ok() noexcept {
+	bool login_result::ok() const noexcept {
 		return result;
 	}
 	
