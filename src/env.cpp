@@ -14,7 +14,7 @@ namespace
 			unsigned short int jwt_expiration{read_env("CPP_JWT_EXP", 600)};
 	};	
 
-	env_vars ev;
+	const env_vars ev;
 	
 	unsigned short int env_vars::read_env(const char* name, unsigned short int default_value) noexcept
 	{

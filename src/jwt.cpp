@@ -114,9 +114,10 @@ namespace
 
 	std::string sign(const std::string& message, const std::string& secret) 
 	{
+		std::vector<unsigned char> msg {message.begin(), message.end()};
 		std::vector<unsigned char> signature_bytes(EVP_MAX_MD_SIZE);
 		unsigned int signature_length {0};
-		HMAC(EVP_sha256(), secret.c_str(), secret.size(), (unsigned char*)message.c_str(), message.size(), signature_bytes.data(), &signature_length);
+		HMAC(EVP_sha256(), secret.c_str(), secret.size(), msg.data(), msg.size(), signature_bytes.data(), &signature_length);
 		return base64_encode(signature_bytes, signature_length);
 	}
 	
@@ -179,7 +180,7 @@ namespace
 
 namespace jwt
 {
-	void clear() { t_user_info.clear(); }
+	void clear() noexcept { t_user_info.clear(); }
 	
 	std::string get_token(const std::string& userlogin, const std::string& mail, const std::string& roles) noexcept
 	{

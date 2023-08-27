@@ -13,9 +13,9 @@
 #include <string>
 #include <iostream>
 #include <unordered_map>
-#include <libpq-fe.h>
 #include "env.h"
 #include "logger.h"
+#include "sql.h"
 
 namespace login
 {

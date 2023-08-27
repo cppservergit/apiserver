@@ -93,29 +93,30 @@ namespace smtp
 		documents.push_back(doc);
 	}
 
-	std::string mail::get_uuid() noexcept 
+	std::string mail::get_uuid() const noexcept 
 	{
 		std::random_device dev;
 		std::mt19937 rng(dev());
-		std::uniform_int_distribution<int> dist(0, 15);
+		std::uniform_int_distribution<> dist(0, 15);
 
-		const char *v = "0123456789abcdef";
-		const bool dash[] = { 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0 };
+		const auto v {"0123456789abcdef"};
+		const std::array<bool, 16> dash { 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0 };
 
 		std::string res;
-		for (int i = 0; i < 16; i++) {
-			if (dash[i]) res += "-";
+		for (const auto& c: dash) {
+			if (c) res += "-";
 			res += v[dist(rng)];
 			res += v[dist(rng)];
 		}
 		return res;
 	}
 
-	std::string mail::get_response_date() noexcept
+	std::string mail::get_response_date() const noexcept
 	{
 		std::array<char, 32> buf;
-		time_t now = time(0);
-		struct tm tm = *gmtime(&now);
+		time_t now = time(nullptr);
+		std::tm tm{};
+		gmtime_r(&now, &tm);
 		strftime(buf.data(), buf.size(), "%a, %d %b %Y %H:%M:%S GMT", &tm);
 		return std::string(buf.data());
 	}

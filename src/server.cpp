@@ -366,19 +366,11 @@ namespace
 					}
 					http::request& req = *static_cast<http::request*>(events[i].data.ptr);
 					req.clear();
-					int fd {req.fd};			
-					#ifdef DEBUG
-						std::stringstream ss;
-						ss << &req;
-						logger::log("epoll", "DEBUG", "retrieved http::request (" + ss.str() + ") - FD: " + std::to_string(fd));
-					#endif
+					int fd {req.fd};
 					int rc = close(fd);
 					--g_connections;
 					if (rc == -1)
 						logger::log("epoll", "error", "close FAILED for FD: " + std::to_string(fd) + " " + std::string(strerror(errno)));
-					#ifdef DEBUG
-						logger::log("epoll", "DEBUG", "close FD: " + std::to_string(fd));
-					#endif
 				}
 				else if (m_signal == events[i].data.fd) //shutdown
 				{
@@ -399,10 +391,6 @@ namespace
 					++g_connections;
 					const char* remote_ip = inet_ntoa(((struct sockaddr_in*)&addr)->sin_addr);
 					
-					#ifdef DEBUG
-						auto start = std::chrono::high_resolution_clock::now();
-					#endif
-					
 					//store pointer to request object
 					epoll_event event;
 					if (buffers.contains(fd)) {
@@ -417,19 +405,6 @@ namespace
 					}
 					event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
 					epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event);
-					
-					#ifdef DEBUG
-						auto finish = std::chrono::high_resolution_clock::now();
-						std::chrono::duration <double>elapsed = finish - start;	
-						logger::log("epoll", "DEBUG", "get request PTR FD: " + std::to_string(fd) + " duration: " +  std::to_string(elapsed.count()), true);
-					#endif
-					
-					#ifdef DEBUG
-						std::stringstream ss;
-						ss <<  &pair.second;
-						logger::log("epoll", "DEBUG", "stored pointer to http::request (" + ss.str() + ") - FD: " + std::to_string(fd));
-						logger::log("epoll", "DEBUG", "accept FD: " + std::to_string(fd));
-					#endif				
 				}
 				else // read/write
 				{
@@ -439,23 +414,12 @@ namespace
 					}
 					http::request& req = *static_cast<http::request*>(events[i].data.ptr);
 					int fd {req.fd};
-					#ifdef DEBUG
-						std::stringstream ss;
-						ss << &req;
-						logger::log("epoll", "DEBUG", "retrieved http::request (" + ss.str() + ") - FD: " + std::to_string(fd));
-					#endif
 					
 					if (events[i].events & EPOLLIN) {
-						#ifdef DEBUG
-							logger::log("epoll", "DEBUG", "epollin FD: " + std::to_string(fd));
-						#endif				
 						bool run_task {false};
 						while (true) 
 						{
 							int count = read(fd, data.data(), data.size());
-							#ifdef DEBUG
-								logger::log("epoll", "DEBUG", "read " + std::to_string(count) + " bytes FD: " + std::to_string(fd));
-							#endif							
 							if (count == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
 								break;
 							}
@@ -472,9 +436,6 @@ namespace
 							}
 						}
 						if (run_task) {
-							#ifdef DEBUG
-								logger::log("epoll", "DEBUG", "dispatching task FD: " + std::to_string(fd));
-							#endif
 							//producer
 							worker_params wp {req};
 							{
@@ -484,15 +445,9 @@ namespace
 							m_cond.notify_all();
 						}
 					} else if (events[i].events & EPOLLOUT) {
-						#ifdef DEBUG
-							logger::log("epoll", "DEBUG", "epollout FD: " + std::to_string(fd));
-						#endif				
 						//send response
 						if (req.response.write(fd)) {
 							req.clear();
-							#ifdef DEBUG
-								logger::log("epoll", "DEBUG", "write complete, setting mode to epollin FD: " + std::to_string(fd));
-							#endif							
 							epoll_event event;
 							event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
 							event.data.ptr = &req;
@@ -633,7 +588,7 @@ namespace
 		server::register_webapi
 		(
 			server::webapi_path("/api/login"), 
-			"Return metrics in Prometheus format",
+			"Default Login service using a PostgreSQL database",
 			http::verb::POST, 
 			{
 				{"username", http::field_type::STRING, true},

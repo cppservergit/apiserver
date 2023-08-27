@@ -30,38 +30,34 @@ namespace
 	}
 
 	// check for valid date in format yyyy-mm-dd
-	inline bool is_date(const std::string & value) 
+	inline bool is_date(const std::string& value) 
 	{
 		if (value.length() != 10)
 			return false;
 
-		std::string sd = value.substr(8, 2);
+		std::string sd {value.substr(8, 2)};
 		if (!is_integer(sd)) return false;
-		std::string sm = value.substr(5, 2);
+		std::string sm {value.substr(5, 2)};
 		if (!is_integer(sm)) return false;
-		std::string sy = value.substr(0, 4);
+		std::string sy {value.substr(0, 4)};
 		if (!is_integer(sy)) return false;
 
 		int d = std::stoi(sd);
 		int m = std::stoi(sm);
 		int y = std::stoi(sy);
 
-		if (! (1<= m && m<=12) )
-		 return false;
-		if (! (1<= d && d<=31) )
-		 return false;
-		if ( (d==31) && (m==2 || m==4 || m==6 || m==9 || m==11) )
-		 return false;
-		if ( (d==30) && (m==2) )
-		 return false;
-		if ( (m==2) && (d==29) && (y%4!=0) )
-		 return false;
-		if ( (m==2) && (d==29) && (y%400==0) )
-		 return true;
-		if ( (m==2) && (d==29) && (y%100==0) )
-		 return false;
-		if ( (m==2) && (d==29) && (y%4==0)  )
-		 return true;
+		if (!(1 <= m && m <= 12) )
+			return false;
+		if (!(1 <= d && d <= 31) )
+			return false;
+		if ( d == 31 && (m == 2 || m == 4 || m == 6 || m == 9 || m == 11) )
+			return false;
+		if (d == 30 && m == 2)
+			return false;
+		if (m == 2 && d == 29) {
+			if (y % 4 != 0 || y % 100 == 0) return false;
+			if (y % 400 == 0 || y % 4 == 0) return true;
+		}
 
 		return true;
 	}
@@ -81,14 +77,14 @@ namespace
 	{
 		std::random_device dev;
 		std::mt19937 rng(dev());
-		std::uniform_int_distribution<int> dist(0, 15);
+		std::uniform_int_distribution<> dist(0, 15);
 
-		const char *v = "0123456789abcdef";
-		const bool dash[] = { 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0 };
+		const auto v {"0123456789abcdef"};
+		const std::array<bool, 16> dash { 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0 };
 
 		std::string res;
-		for (int i = 0; i < 16; i++) {
-			if (dash[i]) res += "-";
+		for (const auto& c: dash) {
+			if (c) res += "-";
 			res += v[dist(rng)];
 			res += v[dist(rng)];
 		}
@@ -118,9 +114,10 @@ namespace http
 
 	std::string get_response_date() noexcept
 	{
-		std::array<char, 32> buf{};
-		time_t now = time(0);
-		struct tm tm = *gmtime(&now);
+		std::array<char, 32> buf;
+		time_t now = time(nullptr);
+		std::tm tm{};
+		gmtime_r(&now, &tm);
 		strftime(buf.data(), buf.size(), "%a, %d %b %Y %H:%M:%S GMT", &tm);
 		return std::string(buf.data());
 	}
@@ -168,7 +165,7 @@ namespace http
 	  public:
 		bool eof{false};
 		
-		line_reader(std::string_view str) : buffer{str} { }
+		explicit line_reader(std::string_view str) : buffer{str} { }
 		
 		std::string_view getline() {
 			if (auto newpos = buffer.find(line_sep, pos); newpos != std::string::npos && newpos!= 0) {
@@ -272,9 +269,6 @@ namespace http
 		buf += _pos1;
 		const char* end = data() + size();
 		ssize_t count = send(fd, buf, end - buf, MSG_NOSIGNAL);
-		#ifdef DEBUG
-			logger::log("epoll", "DEBUG", "send " + std::to_string(count) + " bytes FD: " + std::to_string(fd));
-		#endif			
 		if (count > 0) {
 			buf += count;
 			_pos1 += count;
@@ -298,13 +292,8 @@ namespace http
 		return true;
 	}
 
-	request::request(int epollfd, int fdes, const char* ip): epoll_fd{epollfd}, fd {fdes}, remote_ip {std::string(ip)}
+	request::request(int epollfd, int fdes, const char* ip): epoll_fd{epollfd}, fd {fdes}, remote_ip {ip}
 	{
-		#ifdef DEBUG
-			std::stringstream ss;
-			ss << this;
-			logger::log("http", "DEBUG", " http::request constructor (" + ss.str() + ") - FD: " + std::to_string(fd));
-		#endif		
 		headers.reserve(10);
 		params.reserve(10);
 		payload.reserve(8191);
@@ -312,24 +301,10 @@ namespace http
 
 	request::request() 
 	{
-		#ifdef DEBUG
-			std::stringstream ss;
-			ss << this;
-			logger::log("http", "DEBUG", " http::request default constructor (" + ss.str() + ") - FD: " + std::to_string(fd));
-		#endif		
 		headers.reserve(10);
 		params.reserve(10);
 		payload.reserve(8191);
 	}
-	
-	request::~request() 
-	{
-		#ifdef DEBUG
-			std::stringstream ss;
-			ss << this;
-			logger::log("http", "DEBUG", " http::request destructor (" + ss.str() + ") - FD: " + std::to_string(fd));
-		#endif
-	}	
 	
 	void request::clear() 
 	{
@@ -564,31 +539,29 @@ namespace http
 		return s;
 	}	
 
-	std::string request::decode_param(const std::string &value) noexcept 
+	//using code taken from: https://gitlab.com/eidheim/Simple-Web-Server
+	std::string request::decode_param(std::string_view value) const noexcept 
 	{
-	  std::string result;
-	  result.reserve(value.size() / 3 + (value.size() % 3)); // Minimum size of result
-
-	  for(std::size_t i = 0; i < value.size(); ++i) {
-		auto &chr = value[i];
-		if(chr == '%' && i + 2 < value.size()) {
-		  auto hex = value.substr(i + 1, 2);
-		  auto decoded_chr = static_cast<char>(std::strtol(hex.c_str(), nullptr, 16));
-		  result += decoded_chr;
-		  i += 2;
+		std::string result;
+		result.reserve(63);
+		for(std::size_t i = 0; i < value.size(); ++i) {
+			auto &chr = value[i];
+			if(chr == '%' && i + 2 < value.size()) {
+				std::string hex{value.substr(i + 1, 2)};
+				auto decoded_chr = static_cast<char>(std::strtol(hex.c_str(), nullptr, 16));
+				result += decoded_chr;
+				i += 2;
+			}
+			else if(chr == '+')
+				result += ' ';
+			else
+				result += chr;
 		}
-		else if(chr == '+')
-		  result += ' ';
-		else
-		  result += chr;
-	  }
-
-	  return result;
+		return result;
 	}
 
 	void request::parse_query_string(std::string_view qs) noexcept 
 	{
-
 		if(qs.empty())
 			return;
 
@@ -596,36 +569,20 @@ namespace http
 			return;
 		else {
 			std::string_view query_string = qs.substr(pos + 1);
-			std::size_t name_pos = 0;
-			auto name_end_pos = std::string::npos;
-			auto value_pos = std::string::npos;
-			for(std::size_t c = 0; c < query_string.size(); ++c) {
-			if(query_string[c] == '&') {
-					auto name = query_string.substr(name_pos, (name_end_pos == std::string::npos ? c : name_end_pos) - name_pos);
-					if(!name.empty()) {
-					auto value = value_pos == std::string::npos ? std::string() : query_string.substr(value_pos, c - value_pos);
-					params.emplace(std::move(name), decode_param(std::string(value)));
-				}
-				name_pos = c + 1;
-					name_end_pos = std::string::npos;
-					value_pos = std::string::npos;
-				}
-				else if(query_string[c] == '=' && name_end_pos == std::string::npos) {
-					name_end_pos = c;
-					value_pos = c + 1;
+			constexpr std::string_view delim{"&"};
+			for (const auto& word : std::views::split(query_string, delim)) {
+				std::string_view param{word};
+				if (auto pos {param.find("=")}; pos != std::string::npos) {
+					std::string_view name {param.substr(0, pos)};
+					std::string_view value {param.substr(pos + 1, param.size() - pos)};
+					if (value.contains("%"))
+						params.emplace(std::string{name}, decode_param(value));
+					else
+						params.emplace(std::string{name}, std::string{value});
 				}
 			}
-			if(name_pos < query_string.size()) {
-				auto name = query_string.substr(name_pos, (name_end_pos == std::string::npos ? std::string::npos : name_end_pos - name_pos));
-				if(!name.empty()) {
-				  auto value = value_pos >= query_string.size() ? std::string() : query_string.substr(value_pos);
-				  params.emplace(std::move(name), decode_param(std::string(value)));
-				}
-			}
-			return;
 		}
-		
-	}	
+	}
 	
 	std::string request::get_part_content_type(std::string value) 
 	{

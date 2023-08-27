@@ -41,8 +41,8 @@ namespace smtp
 		private:
 			CURL *curl;
 			CURLcode res = CURLE_OK;
-			struct curl_slist *headers = NULL;
-			struct curl_slist *recipients = NULL;
+			struct curl_slist *headers = nullptr;
+			struct curl_slist *recipients = nullptr;
 			curl_mime *mime;
 			curl_mimepart *part;			
 			std::string server_url;
@@ -57,8 +57,8 @@ namespace smtp
 			};
 			std::vector<attachment> documents;
 
-			std::string get_uuid() noexcept; 
-			std::string get_response_date() noexcept;
+			std::string get_uuid() const noexcept; 
+			std::string get_response_date() const noexcept;
 	};
 }
 

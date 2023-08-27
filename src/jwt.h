@@ -23,7 +23,7 @@ namespace jwt
 {
 	std::string get_token(const std::string& userlogin, const std::string& mail, const std::string& roles) noexcept;
 	bool is_valid(const std::string& token);
-	void clear();
+	void clear() noexcept;
 	std::string user_get_login() noexcept;
 	std::string user_get_mail() noexcept;
 	std::string user_get_roles() noexcept;	

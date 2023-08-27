@@ -25,6 +25,7 @@
 #include <ctime>
 #include <array>
 #include <functional>
+#include <ranges>
 #include <sys/socket.h>
 #include "logger.h"
 #include "jwt.h"
@@ -45,7 +46,7 @@ namespace http
 			{
 				return "Invalid HTTP request input parameter: " + field_name;
 			}
-			invalid_input_exception(const std::string& _name, const std::string& _errmsg): 
+			explicit invalid_input_exception(const std::string& _name, const std::string& _errmsg): 
 				field_name{_name}, error_description{_errmsg} { }
 			auto get_field_name() const { return field_name; }
 			auto get_error_description() const { return error_description; }
@@ -57,7 +58,7 @@ namespace http
 	class login_required_exception
 	{
 		public:
-			login_required_exception(const std::string& _remote_ip, const std::string& _reason)
+			explicit login_required_exception(const std::string& _remote_ip, const std::string& _reason)
 			: m_remote_ip {_remote_ip}, m_reason(_reason) {}
 			std::string what() const noexcept {
 				return "Authentication required from IP: " + m_remote_ip + " reason: " + m_reason;
@@ -70,7 +71,7 @@ namespace http
 	class access_denied_exception
 	{
 		public:
-			access_denied_exception(const std::string& _remote_ip, const std::string& _reason)
+			explicit access_denied_exception(const std::string& _remote_ip, const std::string& _reason)
 			: m_remote_ip {_remote_ip}, m_reason(_reason) {}
 			std::string what() const noexcept {
 				return "Access denied for user: " + jwt::user_get_login() + " from IP: " + m_remote_ip + " reason: " + m_reason;
@@ -83,7 +84,7 @@ namespace http
 	class method_not_allowed_exception
 	{
 		public:
-			method_not_allowed_exception(const std::string& _method): m_method {_method} {}
+			explicit method_not_allowed_exception(const std::string& _method): m_method {_method} {}
 			std::string what() const noexcept {
 				std::string error_msg{"HTTP method not allowed: " + m_method};
 				return error_msg;
@@ -95,7 +96,7 @@ namespace http
 	class resource_not_found_exception
 	{
 		public:
-			resource_not_found_exception(const std::string& _msg): m_message {_msg} {}
+			explicit resource_not_found_exception(const std::string& _msg): m_message {_msg} {}
 			std::string what() const noexcept {
 				std::string error_msg{"Resource not found: " + m_message};
 				return error_msg;
@@ -179,7 +180,6 @@ namespace http
 		response_stream response;
 		request();
 		request(int epollfd, int fdes, const char* ip);
-		~request();
 		void clear();
 		void parse();
 		bool eof();
@@ -195,7 +195,7 @@ namespace http
 	  private:
 		std::string_view get_cookie(std::string_view cookieHdr);
 		std::string lowercase(std::string s) noexcept;	
-		std::string decode_param(const std::string &value) noexcept;
+		std::string decode_param(std::string_view value) const noexcept;
 		void parse_query_string(std::string_view qs) noexcept;	
 		std::string get_part_content_type(std::string value);
 		std::pair<std::string, std::string> get_part_field(std::string value);
