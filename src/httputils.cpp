@@ -75,18 +75,16 @@ namespace
 
 	std::string get_uuid() noexcept 
 	{
-		std::random_device dev;
-		std::mt19937 rng(dev());
-		std::uniform_int_distribution dist(0, 15);
-
+		std::default_random_engine eng;
+		std::uniform_int_distribution dist{0, 15};
 		constexpr auto v {"0123456789abcdef"};
 		constexpr std::array<bool, 16> dash { false, false, false, false, true, false, true, false, true, false, true, false, false, false, false, false };
 
 		std::string res;
 		for (const auto& c: dash) {
 			if (c) res += "-";
-			res += v[dist(rng)];
-			res += v[dist(rng)];
+			res += v[dist(eng)];
+			res += v[dist(eng)];
 		}
 		return res;
 	}
@@ -559,6 +557,18 @@ namespace http
 		return result;
 	}
 
+	void request::parse_param(std::string_view param) noexcept 
+	{
+		if (auto pos {param.find("=")}; pos != std::string::npos) {
+			std::string_view name {param.substr(0, pos)};
+			std::string_view value {param.substr(pos + 1, param.size() - pos)};
+			if (value.contains("%"))
+				params.try_emplace(std::string{name}, decode_param(value));
+			else
+				params.try_emplace(std::string{name}, std::string{value});
+		}		
+	}
+
 	void request::parse_query_string(std::string_view qs) noexcept 
 	{
 		if(qs.empty())
@@ -570,15 +580,7 @@ namespace http
 			std::string_view query_string = qs.substr(pos + 1);
 			constexpr std::string_view delim{"&"};
 			for (const auto& word : std::views::split(query_string, delim)) {
-				std::string_view param{word};
-				if (auto pos {param.find("=")}; pos != std::string::npos) {
-					std::string_view name {param.substr(0, pos)};
-					std::string_view value {param.substr(pos + 1, param.size() - pos)};
-					if (value.contains("%"))
-						params.try_emplace(std::string{name}, decode_param(value));
-					else
-						params.try_emplace(std::string{name}, std::string{value});
-				}
+				parse_param(std::string_view{word});
 			}
 		}
 	}

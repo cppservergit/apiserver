@@ -95,20 +95,19 @@ namespace smtp
 
 	std::string mail::get_uuid() const noexcept 
 	{
-		std::random_device dev;
-		std::mt19937 rng(dev());
-		std::uniform_int_distribution dist(0, 15);
-
+		std::default_random_engine eng;
+		std::uniform_int_distribution dist{0, 15};
 		constexpr auto v {"0123456789abcdef"};
 		constexpr std::array<bool, 16> dash { false, false, false, false, true, false, true, false, true, false, true, false, false, false, false, false };
 
 		std::string res;
 		for (const auto& c: dash) {
 			if (c) res += "-";
-			res += v[dist(rng)];
-			res += v[dist(rng)];
+			res += v[dist(eng)];
+			res += v[dist(eng)];
 		}
 		return res;
+
 	}
 
 	std::string mail::get_response_date() const noexcept
