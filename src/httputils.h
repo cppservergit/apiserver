@@ -196,6 +196,7 @@ namespace http
 		std::string_view get_cookie(std::string_view cookieHdr);
 		std::string lowercase(std::string s) noexcept;	
 		std::string decode_param(std::string_view value) const noexcept;
+		void parse_param(std::string_view param) noexcept; 
 		void parse_query_string(std::string_view qs) noexcept;	
 		std::string get_part_content_type(std::string value);
 		std::pair<std::string, std::string> get_part_field(std::string value);

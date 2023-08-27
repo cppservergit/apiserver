@@ -6,22 +6,22 @@ namespace
 	inline std::string trim(const std::string & source)
 	{
 		std::string s(source);
-		s.erase(0,s.find_first_not_of(" "));
-		s.erase(s.find_last_not_of(" ")+1);
+		s.erase(0, s.find_first_not_of(" "));
+		s.erase(s.find_last_not_of(" ") + 1);
 		return s;
 	}
 
-	inline bool is_integer(const std::string& s)
+	inline bool is_integer(const std::string_view s)
 	{
 		return std::find_if(s.begin(), s.end(), [](unsigned char c) { return !std::isdigit(c); }) == s.end();
 	}
 
-	inline bool is_double(const std::string& s)
+	inline bool is_double(std::string_view s)
 	{
 		if (auto d = s.find("."); d!=std::string::npos) {
-			std::string part1 = s.substr(0, d);
-			std::string part2 = s.substr(d+1);
-			if ( is_integer(part1) && is_integer(part2) )
+			auto part1{s.substr(0, d)};
+			auto part2{s.substr(d + 1)};
+			if (is_integer(part1) && is_integer(part2))
 				return true;
 			else
 				return false;
@@ -30,7 +30,7 @@ namespace
 	}
 
 	// check for valid date in format yyyy-mm-dd
-	inline bool is_date(const std::string& value) 
+	inline bool is_date(std::string_view value) 
 	{
 		if (value.length() != 10)
 			return false;
@@ -62,7 +62,7 @@ namespace
 		return true;
 	}
 
-	inline void replace_str(std::string &str, const std::string& from, const std::string& to) 
+	inline void replace_str(std::string &str, std::string_view from, std::string_view to) 
 	{
 		if (from.empty() || to.empty())
 			return;
@@ -77,10 +77,10 @@ namespace
 	{
 		std::random_device dev;
 		std::mt19937 rng(dev());
-		std::uniform_int_distribution<> dist(0, 15);
+		std::uniform_int_distribution dist(0, 15);
 
-		const auto v {"0123456789abcdef"};
-		const std::array<bool, 16> dash { 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0 };
+		constexpr auto v {"0123456789abcdef"};
+		constexpr std::array<bool, 16> dash { false, false, false, false, true, false, true, false, true, false, true, false, false, false, false, false };
 
 		std::string res;
 		for (const auto& c: dash) {
@@ -97,13 +97,13 @@ namespace
 		if ( ofs.is_open() )
 			ofs << content;
 		else 
-			logger::log("http", "error",  std::string(__FUNCTION__) +  " cannot write to file: " + filename, true);
+			logger::log("http", "error", "save_blob() cannot write to file: " + filename, true);
 	}
 
-	std::string get_file_extension(const std::string& filename) noexcept
+	std::string get_file_extension(std::string_view filename) noexcept
 	{
 		if (auto pos = filename.find_last_of("."); pos != std::string::npos)
-			return filename.substr(pos + 1);
+			return std::string(filename.substr(pos + 1));
 		else
 			return "";
 	}
@@ -111,7 +111,6 @@ namespace
 
 namespace http
 {
-
 	std::string get_response_date() noexcept
 	{
 		std::array<char, 32> buf;
@@ -119,7 +118,7 @@ namespace http
 		std::tm tm{};
 		gmtime_r(&now, &tm);
 		strftime(buf.data(), buf.size(), "%a, %d %b %Y %H:%M:%S GMT", &tm);
-		return std::string(buf.data());
+		return std::string(buf.data());		
 	}
 
 	std::string get_content_type(const std::string& filename) noexcept
@@ -576,9 +575,9 @@ namespace http
 					std::string_view name {param.substr(0, pos)};
 					std::string_view value {param.substr(pos + 1, param.size() - pos)};
 					if (value.contains("%"))
-						params.emplace(std::string{name}, decode_param(value));
+						params.try_emplace(std::string{name}, decode_param(value));
 					else
-						params.emplace(std::string{name}, std::string{value});
+						params.try_emplace(std::string{name}, std::string{value});
 				}
 			}
 		}

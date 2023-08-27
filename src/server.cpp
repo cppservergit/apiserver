@@ -358,9 +358,9 @@ namespace
 			int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, -1);
 			for (int i = 0; i < n_events; i++)
 			{
-				if (((events[i].events & EPOLLRDHUP) || (events[i].events & EPOLLHUP) || events[i].events & EPOLLERR))
+				if (events[i].events & EPOLLRDHUP || events[i].events & EPOLLHUP || events[i].events & EPOLLERR)
 				{
-					if (events[i].data.ptr == NULL) {
+					if (events[i].data.ptr == nullptr) {
 						logger::log("epoll", "error", "epoll data ptr is null - unable to retrieve request object");
 						continue;
 					}
@@ -408,7 +408,7 @@ namespace
 				}
 				else // read/write
 				{
-					if (events[i].data.ptr == NULL) {
+					if (events[i].data.ptr == nullptr) {
 						logger::log("epoll", "error", "epoll data ptr is null - unable to retrieve request object");
 						continue;
 					}
@@ -444,15 +444,12 @@ namespace
 							}
 							m_cond.notify_all();
 						}
-					} else if (events[i].events & EPOLLOUT) {
-						//send response
-						if (req.response.write(fd)) {
+					} else if (req.response.write(fd)) {
 							req.clear();
 							epoll_event event;
 							event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
 							event.data.ptr = &req;
 							epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event);
-						}
 					}
 				}
 			}
@@ -599,20 +596,20 @@ namespace
 			{
 				std::string login{req.get_param("username")};
 				std::string password{req.get_param("password")};
-				if (login::bind(login, password)) {
-					//return JWT token according to: https://openid.net/specs/openid-connect-core-1_0.html section 3.1.3.3
-					std::string token {jwt::get_token(login, login::get_email(), login::get_roles())};
-					std::string login_ok {"{\"status\":\"OK\",\"data\":[{\"displayname\":\"" + login::get_display_name() + "\"," + 
+				if (auto lr {login::bind(login, password)}; lr.ok()) {
+					//return JWT token
+					std::string token {jwt::get_token(login, lr.get_email(), lr.get_roles())};
+					std::string login_ok {"{\"status\":\"OK\",\"data\":[{\"displayname\":\"" + lr.get_display_name() + "\"," + 
 					"\"token_type\":\"bearer\",\"id_token\":\"" + token + "\"}]}"};
 					req.response.set_body(login_ok);
 					if (env::login_log_enabled())
 						logger::log("security", "info", "login OK - user: " + login 
 						+ " IP: " + req.remote_ip 
 						+ " token: " + token 
-						+ " roles: " + login::get_roles(), true);
+						+ " roles: " + lr.get_roles(), true);
 				} else {
 					logger::log("security", "warn", "login failed - user: " + login + " IP: " + req.remote_ip, true);
-					std::string invalid_login = R"({"status": "INVALID", "validation": {"id": "login", "description": "$err.invalidcredentials"}})";
+					std::string invalid_login = R"({"status": "INVALID", "validation": {"id": "login", "description": "err.invalidcredentials"}})";
 					req.response.set_body(invalid_login);
 				}
 			},

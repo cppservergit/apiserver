@@ -33,13 +33,17 @@ namespace smtp
 			std::string x_request_id{""};
 
 			mail(const std::string& server, const std::string& user, const std::string& pwd);
+			mail() = delete;
+			mail(const mail&) = delete;
+			mail(mail&&) = delete;
+			mail& operator=(const mail&) = delete;	
 			~mail();
 			void send() noexcept;
 			void add_attachment(const std::string& path, const std::string& filename, const std::string& encoding = "base64" ) noexcept;
 			void add_attachment(const std::string& path) noexcept;
 			
 		private:
-			CURL *curl;
+			CURL *curl{nullptr};
 			CURLcode res = CURLE_OK;
 			struct curl_slist *headers = nullptr;
 			struct curl_slist *recipients = nullptr;

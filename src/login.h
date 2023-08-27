@@ -19,10 +19,22 @@
 
 namespace login
 {
-	bool bind(const std::string& login, const std::string& password);
-	std::string get_email() noexcept;
-	std::string get_display_name() noexcept;
-	std::string get_roles() noexcept;
+	struct login_result
+	{
+		public:
+			login_result(bool _result, const std::string& _name, const std::string& _mail,const std::string& _roles) noexcept;
+			std::string get_email() noexcept;
+			std::string get_display_name() noexcept;
+			std::string get_roles() noexcept;
+			bool ok() noexcept;
+		private:
+			bool result;
+			std::string display_name;
+			std::string email;
+			std::string roles;
+	};	
+	login_result bind(const std::string& login, const std::string& password);
+	
 }
 
 #endif /* LOGIN_H_ */

@@ -97,10 +97,10 @@ namespace smtp
 	{
 		std::random_device dev;
 		std::mt19937 rng(dev());
-		std::uniform_int_distribution<> dist(0, 15);
+		std::uniform_int_distribution dist(0, 15);
 
-		const auto v {"0123456789abcdef"};
-		const std::array<bool, 16> dash { 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0 };
+		constexpr auto v {"0123456789abcdef"};
+		constexpr std::array<bool, 16> dash { false, false, false, false, true, false, true, false, true, false, true, false, false, false, false, false };
 
 		std::string res;
 		for (const auto& c: dash) {
@@ -113,12 +113,11 @@ namespace smtp
 
 	std::string mail::get_response_date() const noexcept
 	{
-		std::array<char, 32> buf;
-		time_t now = time(nullptr);
-		std::tm tm{};
-		gmtime_r(&now, &tm);
-		strftime(buf.data(), buf.size(), "%a, %d %b %Y %H:%M:%S GMT", &tm);
-		return std::string(buf.data());
+		auto now = std::chrono::system_clock::now();
+		auto t = std::chrono::system_clock::to_time_t(now);
+		std::stringstream fmt;
+		fmt << std::put_time(std::localtime(&t), "%a, %d %b %Y %H:%M:%S GMT") << "\n";
+		return  fmt.str();
 	}
 	
 }

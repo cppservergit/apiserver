@@ -6,7 +6,7 @@ namespace
 	
 	struct env_vars 
 	{
-			unsigned short int read_env(const char* name, unsigned short int default_value) noexcept;
+			unsigned short int read_env(const char* name, unsigned short int default_value) const noexcept;
 			unsigned short int port{read_env("CPP_PORT", 8080)};
 			unsigned short int http_log{read_env("CPP_HTTP_LOG", 0)};
 			unsigned short int login_log{read_env("CPP_LOGIN_LOG", 0)};
@@ -16,16 +16,16 @@ namespace
 
 	const env_vars ev;
 	
-	unsigned short int env_vars::read_env(const char* name, unsigned short int default_value) noexcept
+	unsigned short int env_vars::read_env(const char* name, unsigned short int default_value) const noexcept
 	{
 		unsigned short int value{default_value};
 		if (const char* env_p = std::getenv(name)) {
 			std::string_view str(env_p);
 			auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), value);
 			if (ec == std::errc::invalid_argument)
-				logger::log(LOGGER_SRC, "warn", std::string(__FUNCTION__) + " -> invalid argument for std::from_chars: " + std::string(env_p) + " env-var: " + std::string(name), true);
+				logger::log(LOGGER_SRC, "warn", "read_env() -> invalid argument for std::from_chars: " + std::string(env_p) + " env-var: " + std::string(name), true);
 			else if (ec == std::errc::result_out_of_range)
-				logger::log(LOGGER_SRC, "warn", std::string(__FUNCTION__) + " -> number out of range in std::from_chars: " + std::string(env_p) + " env-var: " + std::string(name), true);
+				logger::log(LOGGER_SRC, "warn", "read_env() -> number out of range in std::from_chars: " + std::string(env_p) + " env-var: " + std::string(name), true);
 		}
 		return value;
 	}
@@ -33,7 +33,7 @@ namespace
 
 namespace env 
 {
-	std::string get_str(std::string name) noexcept
+	std::string get_str(const std::string& name) noexcept
 	{
 		if (const char* env_p = std::getenv(name.c_str()))
 			return std::string(env_p);

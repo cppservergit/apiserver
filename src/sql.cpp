@@ -33,7 +33,7 @@ namespace
 		{
 			conn = PQconnectdb(m_dbconnstr.c_str());
 			if (PQstatus(conn) != CONNECTION_OK)
-				logger::log(LOGGER_SRC, "error", std::string(__FUNCTION__) + ": " + get_error(conn), true);
+				logger::log(LOGGER_SRC, "error", "dbutil() -> " + get_error(conn), true);
 		}
 		
 		dbutil(dbutil &&source) noexcept: m_dbconnstr{source.m_dbconnstr}, conn{source.conn}
@@ -53,13 +53,13 @@ namespace
 		inline void reset_connection() noexcept
 		{
 			if ( PQstatus(conn) == CONNECTION_BAD ) {
-				logger::log(LOGGER_SRC, "warn", std::string(__FUNCTION__) + ": connection to database " + std::string(PQdb(conn)) + " no longer valid, reconnecting... ", true);
+				logger::log(LOGGER_SRC, "warn", "reset_connection() -> connection to database " + std::string(PQdb(conn)) + " no longer valid, reconnecting... ", true);
 				PQfinish(conn);
 				conn = PQconnectdb(m_dbconnstr.c_str());
 				if (PQstatus(conn) != CONNECTION_OK)
-					logger::log(LOGGER_SRC, "error", std::string(__FUNCTION__) + ": error reconnecting to database " + std::string(PQdb(conn)) + " - " + get_error(conn), true);
+					logger::log(LOGGER_SRC, "error", "reset_connection() -> error reconnecting to database " + std::string(PQdb(conn)) + " - " + get_error(conn), true);
 				else
-					logger::log(LOGGER_SRC, "info", std::string(__FUNCTION__) + ": connection to database " +  std::string(PQdb(conn)) + " restored", true);
+					logger::log(LOGGER_SRC, "info", "reset_connection() -> connection to database " +  std::string(PQdb(conn)) + " restored", true);
 			}
 		}
 	
@@ -70,7 +70,7 @@ namespace
 	PGconn* getdb(const std::string& dbname)
 	{
 		if (!dbconns.contains(dbname)) {
-			std::string error{std::string(__FUNCTION__) + ": invalid dbname: " + dbname};
+			std::string error{"getdb() -> invalid dbname: " + dbname};
 			throw std::runtime_error(error.c_str());
 		}
 		return dbconns[dbname].conn;
@@ -117,7 +117,7 @@ namespace sql
 			dbconns.insert({dbname, dbutil(conn_info)});
 		}
 		else {
-			std::string error{std::string(__FUNCTION__) + ": duplicated dbname: " + dbname};
+			std::string error{"connect() -> duplicated dbname: " + dbname};
 			throw std::runtime_error(error.c_str());
 		}
 	}

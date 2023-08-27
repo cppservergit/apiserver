@@ -112,7 +112,7 @@ namespace
 	  return out;
 	}
 
-	std::string sign(const std::string& message, const std::string& secret) 
+	std::string sign(std::string_view message, const std::string& secret) 
 	{
 		std::vector<unsigned char> msg {message.begin(), message.end()};
 		std::vector<unsigned char> signature_bytes(EVP_MAX_MD_SIZE);
