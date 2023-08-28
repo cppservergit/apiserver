@@ -674,11 +674,11 @@ namespace server
 		
 		std::jthread task ( [=]() {
 			smtp::mail m(env::get_str("CPP_MAIL_SERVER"), env::get_str("CPP_MAIL_USER"), env::get_str("CPP_MAIL_PWD"));
-			m.x_request_id = x_request_id; 
-			m.to = to;
-			m.cc = cc;
-			m.subject = subject;
-			m.body = body;
+			m.set_x_request_id(x_request_id); 
+			m.set_to(to);
+			m.set_cc(cc);
+			m.set_subject(subject);
+			m.set_body(body);
 			if (!attachment.empty()) {
 				std::string path {attachment.starts_with("/") ? attachment : "/var/blobs/" + attachment};
 				if (!attachment_filename.empty())

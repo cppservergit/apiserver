@@ -13,7 +13,7 @@ namespace
 
 	inline bool is_integer(const std::string_view s)
 	{
-		return std::find_if(s.begin(), s.end(), [](unsigned char c) { return !std::isdigit(c); }) == s.end();
+		return std::ranges::find_if(s, [](unsigned char c) { return !std::isdigit(c); }) == s.end();
 	}
 
 	inline bool is_double(std::string_view s)

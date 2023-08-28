@@ -93,5 +93,33 @@ namespace smtp
 		documents.push_back(doc);
 	}
 
+	void mail::set_to(const std::string&  _to) noexcept
+	{
+		to = _to;
+	}
 	
+	void mail::set_cc(const std::string&  _cc) noexcept
+	{
+		cc = _cc;
+	}
+	
+	void mail::set_subject(const std::string&  _subject) noexcept
+	{
+		subject = _subject;
+	}
+	
+	void mail::set_body(const std::string&  _body) noexcept
+	{
+		body = _body;
+	}
+	
+	void mail::set_debug(bool _debug) noexcept
+	{
+		debug_mode = _debug;
+	}
+	
+	void mail::set_x_request_id(const std::string&  _id) noexcept
+	{
+		x_request_id = _id;
+	}
 }

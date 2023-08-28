@@ -25,23 +25,23 @@ namespace smtp
 {
 	struct mail
 	{
-		public:
-			std::string to;
-			std::string cc;
-			std::string subject;
-			std::string body;
-			bool debug_mode{false};
-			std::string x_request_id{""};
-
 			mail(const std::string& server, const std::string& user, const std::string& pwd);
 			mail() = delete;
 			mail(const mail&) = delete;
 			mail(mail&&) = delete;
-			mail& operator=(const mail&) = delete;	
+			mail& operator=(const mail&) = delete;
+			mail& operator=(mail&& other) = delete;
 			~mail();
 			void send() noexcept;
 			void add_attachment(const std::string& path, const std::string& filename, const std::string& encoding = "base64" ) noexcept;
 			void add_attachment(const std::string& path) noexcept;
+			
+			void set_to(const std::string&  _to) noexcept;
+			void set_cc(const std::string&  _cc) noexcept;
+			void set_subject(const std::string&  _subject) noexcept;
+			void set_body(const std::string&  _body) noexcept;
+			void set_debug(bool _debug) noexcept;
+			void set_x_request_id(const std::string&  _id) noexcept;
 			
 		private:
 			CURL *curl{nullptr};
@@ -54,6 +54,13 @@ namespace smtp
 			std::string username;
 			std::string password;
 
+			std::string to;
+			std::string cc;
+			std::string subject;
+			std::string body;
+			bool debug_mode{false};
+			std::string x_request_id;
+			
 			struct attachment
 			{
 				std::string filesystem_path;
