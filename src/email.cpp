@@ -93,22 +93,22 @@ namespace smtp
 		documents.push_back(doc);
 	}
 
-	void mail::set_to(const std::string&  _to) noexcept
+	void mail::set_to(std::string_view  _to) noexcept
 	{
 		to = _to;
 	}
 	
-	void mail::set_cc(const std::string&  _cc) noexcept
+	void mail::set_cc(std::string_view  _cc) noexcept
 	{
 		cc = _cc;
 	}
 	
-	void mail::set_subject(const std::string&  _subject) noexcept
+	void mail::set_subject(std::string_view  _subject) noexcept
 	{
 		subject = _subject;
 	}
 	
-	void mail::set_body(const std::string&  _body) noexcept
+	void mail::set_body(std::string_view  _body) noexcept
 	{
 		body = _body;
 	}
@@ -118,7 +118,7 @@ namespace smtp
 		debug_mode = _debug;
 	}
 	
-	void mail::set_x_request_id(const std::string&  _id) noexcept
+	void mail::set_x_request_id(std::string_view  _id) noexcept
 	{
 		x_request_id = _id;
 	}

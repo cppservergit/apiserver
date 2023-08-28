@@ -36,12 +36,12 @@ namespace smtp
 			void add_attachment(const std::string& path, const std::string& filename, const std::string& encoding = "base64" ) noexcept;
 			void add_attachment(const std::string& path) noexcept;
 			
-			void set_to(const std::string&  _to) noexcept;
-			void set_cc(const std::string&  _cc) noexcept;
-			void set_subject(const std::string&  _subject) noexcept;
-			void set_body(const std::string&  _body) noexcept;
+			void set_to(std::string_view  _to) noexcept;
+			void set_cc(std::string_view  _cc) noexcept;
+			void set_subject(std::string_view  _subject) noexcept;
+			void set_body(std::string_view  _body) noexcept;
 			void set_debug(bool _debug) noexcept;
-			void set_x_request_id(const std::string&  _id) noexcept;
+			void set_x_request_id(std::string_view  _id) noexcept;
 			
 		private:
 			CURL *curl{nullptr};
