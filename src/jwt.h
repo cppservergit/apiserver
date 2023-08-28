@@ -14,8 +14,8 @@
 #include <vector>
 #include <string_view>
 #include <ctime>
-#include <cstdlib>
 #include <chrono>
+#include <algorithm>
 #include <openssl/hmac.h>
 #include "logger.h"
 #include "env.h"

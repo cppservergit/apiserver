@@ -34,65 +34,47 @@ namespace
 		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '_'
 	};
 
-	//custom overload to be used by sign()
-	std::string base64_encode(const std::vector<unsigned char> & in, size_t len) 
+	//original code modified to use std::ranges as suggested by sonarcloud static analyzer
+	//and generic code to support string_view and vector
+	template<typename T>
+	std::string base64_encode(T in) 
 	{
 	  std::string out;
+	  out.reserve(127);
 	  int val = 0;
 	  int valb = -6;
-	  for (unsigned int i = 0; i < len; i++) {
-		unsigned char c = in[i];
+	  std::ranges::for_each(in, [&](unsigned char c) {
 		val = (val<<8) + c;
 		valb += 8;
 		while (valb >= 0) {
 		  out.push_back(base64_url_alphabet[(val>>valb)&0x3F]);
 		  valb -= 6;
 		}
-	  }
-	  if (valb > -6) {
+	  });
+	  if (valb > -6) 
 		out.push_back(base64_url_alphabet[((val<<8)>>(valb+8))&0x3F]);
-	  }
 	  return out;
 	}
 
-	std::string base64_encode(const std::string & in) 
-	{
-	  std::string out;
-	  int val = 0;
-	  int valb = -6;
-	  size_t len = in.length();
-	  for (unsigned int i = 0; i < len; i++) {
-		unsigned char c = in[i];
-		val = (val<<8) + c;
-		valb += 8;
-		while (valb >= 0) {
-		  out.push_back(base64_url_alphabet[(val>>valb)&0x3F]);
-		  valb -= 6;
-		}
-	  }
-	  if (valb > -6) {
-		out.push_back(base64_url_alphabet[((val<<8)>>(valb+8))&0x3F]);
-	  }
-	  return out;
-	}
-
+    //original code modified to use std::ranges as suggested by sonarcloud static analyzer
 	std::string base64_decode(std::string_view in) 
 	{
 	  std::string out;
+	  out.reserve(127);
 	  std::vector<int> T(256, -1);
-	  for (unsigned int i = 0; i < 64; i++) T[base64_url_alphabet[i]] = i;
+	  for (unsigned int i = 0; i < 64; i++) 
+		  T[base64_url_alphabet[i]] = i;
 	  int val = 0; 
 	  int valb = -8;
-	  for (unsigned int i = 0; i < in.length(); i++) {
-		unsigned char c = in[i];
-		if (T[c] == -1) break;
+      std::ranges::for_each(in, [&](unsigned char c) {
+		if (T[c] == -1) return;
 		val = (val<<6) + T[c];
 		valb += 6;
 		if (valb >= 0) {
 		  out.push_back(char((val>>valb)&0xFF));
 		  valb -= 8;
 		}
-	  }
+	  });
 	  return out;
 	}
 
@@ -102,7 +84,8 @@ namespace
 		std::vector<unsigned char> signature_bytes(EVP_MAX_MD_SIZE);
 		unsigned int signature_length {0};
 		HMAC(EVP_sha256(), secret.c_str(), secret.size(), msg.data(), msg.size(), signature_bytes.data(), &signature_length);
-		return base64_encode(signature_bytes, signature_length);
+		signature_bytes.erase(signature_bytes.begin() + signature_length, signature_bytes.end());
+		return base64_encode(signature_bytes);
 	}
 	
 	json_token parse(std::string_view token)
