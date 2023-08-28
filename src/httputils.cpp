@@ -82,13 +82,6 @@ namespace
 			logger::log("http", "error", "save_blob() cannot write to file: " + filename, true);
 	}
 
-	std::string get_file_extension(std::string_view filename) noexcept
-	{
-		if (auto pos = filename.find_last_of("."); pos != std::string::npos)
-			return std::string(filename.substr(pos + 1));
-		else
-			return "";
-	}
 }
 
 namespace http
@@ -113,71 +106,30 @@ namespace http
 	std::string get_response_date() noexcept
 	{
 		std::array<char, 32> buf;
-		//time_t now = time(nullptr);
-		auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());		
+		auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 		std::tm tm{};
 		gmtime_r(&now, &tm);
 		strftime(buf.data(), buf.size(), "%a, %d %b %Y %H:%M:%S GMT", &tm);
 		return std::string(buf.data());		
 	}
 
-	std::string get_content_type(const std::string& filename) noexcept
-	{
-
-		std::unordered_map<std::string, std::string> mime_types 
-		{
-			{"pdf", "application/pdf"},
-			{"css", "text/css"},
-			{"htm", "text/html"},
-			{"html", "text/html"},
-			{"js", "text/javascript"},
-			{"map", "application/json"},
-			{"png", "image/png"},
-			{"jpg", "image/jpeg"},
-			{"jpeg", "image/jpeg"},
-			{"mp4", "video/mp4"},
-			{"gif", "image/gif"},
-			{"apk", "application/vnd.android.package-archive"},
-			{"txt", "text/plain"},
-			{"json", "application/json"},
-			{"mpeg", "video/mpeg"},
-			{"webm", "video/webm"},
-			{"mp3", "audio/mp3"},
-			{"mpga", "audio/mpeg"},
-			{"weba", "audio/webm"},
-			{"wav", "audio/wave"},
-			{"gz", "application/gzip"},
-			{"tgz", "application/gzip"},
-			{"zip", "application/zip"},
-			{"ico", "image/x-icon"}
-		};
-
-		if (auto mime = mime_types.find( get_file_extension(filename) ); mime != mime_types.end() )
-		  return mime->second;
-		else {
-			logger::log("http", "warn", std::string(__PRETTY_FUNCTION__) + " content-type not defined for file: " + filename, true);
-			return "application/octet-stream";
-		}
-	}
-
 	struct line_reader {
 	  public:
-		bool eof{false};
-		
 		explicit line_reader(std::string_view str) : buffer{str} { }
-		
+		bool eof() const noexcept { return _eof; }
 		std::string_view getline() {
 			if (auto newpos = buffer.find(line_sep, pos); newpos != std::string::npos && newpos!= 0) {
 				std::string_view line { buffer.substr( pos, newpos - pos ) };
 				pos = newpos + line_sep.size();
 				return line;
 			} else {
-				eof = true;
+				_eof = true;
 				return "";
 			}
 		}
 		
 	  private:
+		bool _eof{false};
 		std::string_view buffer;
 		int pos{0};
 		const std::string line_sep{"\r\n"};
@@ -324,6 +276,10 @@ namespace http
 		contentLength = 0;
 		method = "";
 		isMultipart = false;
+		user_info.login = "";
+		user_info.mail = "";
+		user_info.roles = "";
+		user_info.exp = 0;
 	}
 	
 	
@@ -417,7 +373,7 @@ namespace http
 		}
 
 		try {
-			while (!lr.eof) {
+			while (!lr.eof()) {
 				std::string_view line = lr.getline();
 				if (line.size()==0) break;
 				if (auto newpos = line.find(":", 0); newpos != std::string::npos) {
@@ -625,12 +581,11 @@ namespace http
 
 	std::vector<form_field> request::parse_multipart() 
 	{
-
 		std::string _boundary{ "--" + boundary };
 		std::string endBoundary{_boundary + "--"};
 		
 		std::vector<form_field> fields;
-		fields.reserve(4);
+		fields.reserve(5);
 		
 		std::string dataBuffer;
 		dataBuffer.reserve(131071);
@@ -683,12 +638,12 @@ namespace http
 		return fields;
 	}
 
-	std::string request::get_sql(std::string sql, const std::string& userlogin)
+	std::string request::get_sql(std::string sql)
 	{
 		if (input_rules.size() == 0)
 			return sql;
 		if (std::size_t pos = sql.find("$userlogin"); pos != std::string::npos)
-			sql.replace(pos, std::string("$userlogin").length(), "'" + userlogin + "'");
+			sql.replace(pos, std::string("$userlogin").length(), "'" + user_info.login + "'");
 		for (const auto& p:input_rules)
 		{
 			std::string name {"$" + p.get_name()};
@@ -716,20 +671,21 @@ namespace http
 		if (token.empty())
 			throw login_required_exception(remote_ip, "No JWT token in request headers");
 		
-		if (!jwt::is_valid(token)) 
+		if (auto [is_valid, user]{jwt::is_valid(token)}; !is_valid) 
 			throw login_required_exception(remote_ip, "JWT token is not valid");
+		else
+			user_info = user;
 		
 		if (roles.size()) {
-			std::string user_roles{jwt::user_get_roles()};
-			if (user_roles.empty())
-				throw access_denied_exception(remote_ip, "User has no roles");
+			if (user_info.roles.empty())
+				throw access_denied_exception(user_info.login, remote_ip, "User has no roles");
 			for (const auto& r: roles)
-				if (user_roles.find(r) != std::string::npos) return;
-			throw access_denied_exception(remote_ip, "User roles are not authorized to execute this service: " + user_roles);
+				if (user_info.roles.find(r) != std::string::npos) return;
+			throw access_denied_exception(user_info.login, remote_ip, "User roles are not authorized to execute this service: " + user_info.roles);
 		}
 	}
 
-	std::string request::get_mail_body(const std::string& template_file, const std::string& userlogin)
+	std::string request::get_mail_body(const std::string& template_file)
 	{
 		std::string path {"/var/mail/" + template_file};
 		std::stringstream buffer;
@@ -743,7 +699,7 @@ namespace http
 		}
 		std::string body {buffer.str()};
 		if (std::size_t pos = body.find("$userlogin"); pos != std::string::npos)
-			body.replace(pos, std::string("$userlogin").length(), userlogin);
+			body.replace(pos, std::string("$userlogin").length(), user_info.login);
 		if (input_rules.size() == 0)
 			return body;
 		for (const auto& p:input_rules)
@@ -764,7 +720,7 @@ namespace http
 	{
 		std::string body {template_file};
 		if (std::size_t pos = body.find("$userlogin"); pos != std::string::npos)
-			body.replace(pos, std::string("$userlogin").length(), jwt::user_get_login());
+			body.replace(pos, std::string("$userlogin").length(), user_info.login);
 		if (input_rules.size() == 0)
 			return body;
 		for (const auto& p:input_rules)

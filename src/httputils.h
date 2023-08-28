@@ -72,14 +72,15 @@ namespace http
 	class access_denied_exception
 	{
 		public:
-			explicit access_denied_exception(const std::string& _remote_ip, const std::string& _reason)
-			: m_remote_ip {_remote_ip}, m_reason(_reason) {}
+			explicit access_denied_exception(const std::string& _user, const std::string& _remote_ip, const std::string& _reason)
+			: m_user {_user}, m_remote_ip {_remote_ip}, m_reason {_reason} {}
 			std::string what() const noexcept {
-				return "Access denied for user: " + jwt::user_get_login() + " from IP: " + m_remote_ip + " reason: " + m_reason;
+				return "Access denied for user: " + m_user + " from IP: " + m_remote_ip + " reason: " + m_reason;
 			}
 		private:
+			std::string m_user;
             std::string m_remote_ip;
-            std::string m_reason;		
+            std::string m_reason;
 	};
 
 	class method_not_allowed_exception
@@ -178,6 +179,7 @@ namespace http
 		std::unordered_map<std::string, std::string> headers;
 		std::unordered_map<std::string, std::string> params;
 		std::vector<input_rule> input_rules;
+		jwt::user_info user_info;
 		response_stream response;
 		request();
 		request(int epollfd, int fdes, const char* ip);
@@ -189,9 +191,9 @@ namespace http
 		void enforce(verb v);
 		void enforce(const std::vector<input_rule>& rules);
 		void enforce(const std::string& id, const std::string& error_description, std::function<bool()> fn);
-		std::string get_sql(std::string sql, const std::string& userlogin = "");
+		std::string get_sql(std::string sql);
 		void check_security(const std::vector<std::string>& roles = {});
-		std::string get_mail_body(const std::string& template_file, const std::string& userlogin = "Undefined");
+		std::string get_mail_body(const std::string& template_file);
 		std::string replace_params(const std::string& template_msg);
 	  private:
 		std::string_view get_cookie(std::string_view cookieHdr);

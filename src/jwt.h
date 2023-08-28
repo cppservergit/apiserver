@@ -15,18 +15,23 @@
 #include <string_view>
 #include <ctime>
 #include <cstdlib>
+#include <chrono>
 #include <openssl/hmac.h>
 #include "logger.h"
 #include "env.h"
 
 namespace jwt
 {
+	struct user_info 
+	{
+		std::string login;
+		std::string mail;
+		std::string roles;
+		time_t exp{0};
+	};
+	
 	std::string get_token(const std::string& userlogin, const std::string& mail, const std::string& roles) noexcept;
-	bool is_valid(const std::string& token);
-	void clear() noexcept;
-	std::string user_get_login() noexcept;
-	std::string user_get_mail() noexcept;
-	std::string user_get_roles() noexcept;	
+	std::pair<bool, user_info> is_valid(const std::string& token);
 }
 
 #endif /* JWT_H_ */

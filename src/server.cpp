@@ -181,7 +181,6 @@ namespace
 		++g_active_threads;	
 
 		logger::set_request_id(req.get_header("x-request-id"));
-		jwt::clear();
 
 		auto start = std::chrono::high_resolution_clock::now();
 
@@ -210,7 +209,7 @@ namespace
 				req.response.set_body(error);
 			} catch (const http::access_denied_exception& e) { //thrown by request::check_security()
 				logger::log("security", "error", req.path + " " + e.what(), true);
-				std::string error {R"({"status": "INVALID", "validation": {"id": "_dialog_", "description": "$err.accessdenied"}})"};
+				std::string error {R"({"status": "INVALID", "validation": {"id": "_dialog_", "description": "err.accessdenied"}})"};
 				req.response.set_body(error);
 			} catch (const http::login_required_exception& e) { //thrown by request::check_security()
 				logger::log("security", "error", req.path + " " + e.what(), true);
@@ -237,7 +236,7 @@ namespace
 				+ req.method
 				+ " path=" + req.path 
 				+ " elapsed-time=" + std::to_string(elapsed.count()) 
-				+ " user=" + jwt::user_get_login(), true);
+				+ " user=" + req.user_info.login, true);
 
 		g_total_time += elapsed.count();
 		++g_counter;
