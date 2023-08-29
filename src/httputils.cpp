@@ -105,11 +105,11 @@ namespace http
 
 	std::string get_response_date() noexcept
 	{
-		std::array<char, 32> buf;
+		std::array<char, 64> buf;
 		auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 		std::tm tm{};
 		gmtime_r(&now, &tm);
-		strftime(buf.data(), buf.size(), "%a, %d %b %Y %H:%M:%S GMT", &tm);
+		std::strftime(buf.data(), buf.size(), "%a, %d %b %Y %H:%M:%S GMT", &tm);
 		return std::string(buf.data());		
 	}
 
@@ -135,7 +135,8 @@ namespace http
 		const std::string line_sep{"\r\n"};
 	};
 
-	response_stream::response_stream(int size) {
+	response_stream::response_stream(int size) noexcept 
+	{
 		_buffer.reserve(size);
 	}
 	
@@ -161,17 +162,17 @@ namespace http
 		_buffer.append("\r\n").append(body);
 	}
 	
-	void response_stream::set_content_disposition(const std::string& disposition)
+	void response_stream::set_content_disposition(std::string_view disposition)
 	{
 		_content_disposition = disposition;
 	}
 	
-	void response_stream::set_origin(const std::string& origin)
+	void response_stream::set_origin(std::string_view origin)
 	{
 		_origin = origin;
 	}
 	
-	response_stream& response_stream::operator <<(std::string data) {
+	response_stream& response_stream::operator <<(const std::string& data) {
 		_buffer.append(data);
 		return *this;
 	}
@@ -270,7 +271,6 @@ namespace http
 		queryString = "";
 		path = "";
 		boundary = "";
-		cookie = "";
 		token = "";
 		bodyStartPos = 0;
 		contentLength = 0;
@@ -284,7 +284,7 @@ namespace http
 	
 	
 	void request::enforce(verb v) {
-		std::string methods[] {"GET", "POST"};
+		const std::string methods[] {"GET", "POST"};
 		if (method != methods[int(v)])
 			throw method_not_allowed_exception(method);
 	}	
@@ -296,38 +296,35 @@ namespace http
 		for (const auto& r: rules) 
 		{
 			if (r.get_required() && !params.contains(r.get_name())) 
-				throw invalid_input_exception(r.get_name(), "$err.required");
+				throw invalid_input_exception(r.get_name(), "err.required");
 			
 			auto& value = params[r.get_name()];
 			value = trim(value);
 			if (r.get_required() && value.empty())
-				throw invalid_input_exception(r.get_name(), "$err.required");
+				throw invalid_input_exception(r.get_name(), "err.required");
 			if (!value.empty()) {
-				if (r.get_type() == field_type::INTEGER) {
-					if (!is_integer(value))
-						throw invalid_input_exception(r.get_name(), "$err.invalidtype");
-				} else if (r.get_type() == field_type::DOUBLE) {
-					if (!is_double(value))
-						throw invalid_input_exception(r.get_name(), "$err.invalidtype");
-				} else if (r.get_type() == field_type::DATE) {
-					if (!is_date(value))
-						throw invalid_input_exception(r.get_name(), "$err.invalidtype");
-				} else if (r.get_type() == field_type::STRING) {
-					if (!value.empty()) {
+				switch (r.get_type()) {
+					case field_type::INTEGER:
+						if (!is_integer(value))
+							throw invalid_input_exception(r.get_name(), "err.invalidtype");
+						break;
+					case field_type::DOUBLE:
+						if (!is_double(value))
+							throw invalid_input_exception(r.get_name(), "err.invalidtype");
+						break;
+					case field_type::DATE:
+						if (!is_date(value))
+							throw invalid_input_exception(r.get_name(), "err.invalidtype");
+						break;
+					case field_type::STRING:
 						//prevent sql injection
 						replace_str(value, "'", "''");
 						replace_str(value, "\\", "");
-					}
+						break;
 				}
 			}
 		}
 	}	
-	
-	void request::enforce(const std::string& id, const std::string& error_description, std::function<bool()> fn)
-	{
-		if (!fn())
-			throw invalid_input_exception(id, error_description);
-	}
 	
 	void request::parse() 
 	{
@@ -399,9 +396,6 @@ namespace http
 					else if (h.first->first == "x-forwarded-for")
 					{
 						remote_ip = h.first->second;					
-					}
-					else if (h.first->first == "cookie") {
-						cookie = get_cookie( h.first->second );
 					}
 					else if (h.first->first == "origin") {
 						origin = h.first->second;

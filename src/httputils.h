@@ -116,7 +116,7 @@ namespace http
 
 	struct input_rule {
 		public:
-			input_rule(std::string n, field_type d, bool r): name{n}, datatype{d}, required{r} {  }
+			input_rule(std::string n, field_type d, bool r) noexcept: name{n}, datatype{d}, required{r} {  }
 			auto get_name() const {return name;}
 			auto get_type() const {return datatype;}
 			auto get_required() const {return required;}
@@ -136,14 +136,14 @@ namespace http
 
 	struct response_stream {
 	  public:	
-		response_stream(int size);
+		explicit response_stream(int size) noexcept;
 		response_stream();
-		response_stream& operator <<(std::string data);
+		response_stream& operator <<(const std::string& data);
 		response_stream& operator <<(const char* data);
 		response_stream& operator <<(size_t data);
 		void set_body(const std::string& body, const std::string& content_type = "application/json", int max_age = 0);
-		void set_content_disposition(const std::string& disposition);
-		void set_origin(const std::string& origin);
+		void set_content_disposition(std::string_view disposition);
+		void set_origin(std::string_view origin);
 		std::string_view view() noexcept;
 		size_t size() noexcept;
 		const char* c_str() noexcept;
@@ -161,18 +161,17 @@ namespace http
 	struct request {
 	  public:
 		int epoll_fd;
-		int fd; //socket fd
+		int fd;
 		size_t bodyStartPos{0};
 		size_t contentLength{0};
 		bool isMultipart{false};
-		std::string method{""};
-		std::string queryString{""};
-		std::string path{""};
-		std::string boundary{""};
-		std::string cookie{""};
-		std::string token{""};
+		std::string method;
+		std::string queryString;
+		std::string path;
+		std::string boundary;
+		std::string token;
 		int errcode{0};
-		std::string errmsg{""};
+		std::string errmsg;
 		std::string remote_ip;
 		std::string origin{"null"};
 		std::string payload;
@@ -190,7 +189,12 @@ namespace http
 		std::string get_param(const std::string& name) const;
 		void enforce(verb v);
 		void enforce(const std::vector<input_rule>& rules);
-		void enforce(const std::string& id, const std::string& error_description, std::function<bool()> fn);
+		template<class FN>
+		void enforce(const std::string& id, const std::string& error_description, FN fn)
+		{
+			if (!fn())
+				throw invalid_input_exception(id, error_description);
+		}	
 		std::string get_sql(std::string sql);
 		void check_security(const std::vector<std::string>& roles = {});
 		std::string get_mail_body(const std::string& template_file);
