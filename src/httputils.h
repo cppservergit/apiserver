@@ -138,7 +138,7 @@ namespace http
 	  public:	
 		explicit response_stream(int size) noexcept;
 		response_stream();
-		response_stream& operator <<(const std::string& data);
+		response_stream& operator <<(std::string_view data);
 		response_stream& operator <<(const char* data);
 		response_stream& operator <<(size_t data);
 		void set_body(const std::string& body, const std::string& content_type = "application/json", int max_age = 0);
@@ -187,14 +187,16 @@ namespace http
 		bool eof();
 		std::string get_header(const std::string& name) const;
 		std::string get_param(const std::string& name) const;
-		void enforce(verb v);
+		void enforce(verb v) const;
 		void enforce(const std::vector<input_rule>& rules);
+		
 		template<class FN>
-		void enforce(const std::string& id, const std::string& error_description, FN fn)
+		void enforce(const std::string& id, const std::string& error_description, FN fn) const
 		{
 			if (!fn())
 				throw invalid_input_exception(id, error_description);
-		}	
+		}
+		
 		std::string get_sql(std::string sql);
 		void check_security(const std::vector<std::string>& roles = {});
 		std::string get_mail_body(const std::string& template_file);

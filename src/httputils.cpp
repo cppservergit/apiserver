@@ -172,7 +172,7 @@ namespace http
 		_origin = origin;
 	}
 	
-	response_stream& response_stream::operator <<(const std::string& data) {
+	response_stream& response_stream::operator <<(std::string_view data) {
 		_buffer.append(data);
 		return *this;
 	}
@@ -283,7 +283,7 @@ namespace http
 	}
 	
 	
-	void request::enforce(verb v) {
+	void request::enforce(verb v) const {
 		const std::string methods[] {"GET", "POST"};
 		if (method != methods[int(v)])
 			throw method_not_allowed_exception(method);
@@ -303,20 +303,21 @@ namespace http
 			if (r.get_required() && value.empty())
 				throw invalid_input_exception(r.get_name(), "err.required");
 			if (!value.empty()) {
+				using enum field_type;
 				switch (r.get_type()) {
-					case field_type::INTEGER:
+					case INTEGER:
 						if (!is_integer(value))
 							throw invalid_input_exception(r.get_name(), "err.invalidtype");
 						break;
-					case field_type::DOUBLE:
+					case DOUBLE:
 						if (!is_double(value))
 							throw invalid_input_exception(r.get_name(), "err.invalidtype");
 						break;
-					case field_type::DATE:
+					case DATE:
 						if (!is_date(value))
 							throw invalid_input_exception(r.get_name(), "err.invalidtype");
 						break;
-					case field_type::STRING:
+					case STRING:
 						//prevent sql injection
 						replace_str(value, "'", "''");
 						replace_str(value, "\\", "");
