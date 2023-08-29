@@ -54,22 +54,30 @@ namespace server
 	struct webapi_path
 	{
 		public:
-			webapi_path(const std::string& _path): m_path{_path} 
+			consteval webapi_path(std::string_view _path): m_path{_path} 
 			{
-				if (!_path.starts_with("/") || _path.ends_with("/") || _path.contains(" ") || _path.contains("//"))
-					throw std::runtime_error("Invalid path: " + m_path);
-				std::string valid_chars{"abcdefghijklmnopqrstuvwxyz_-0123456789/"};
-				for(const char& c: m_path)
+				if (_path.contains(" ")) {
+					throw "Invalid WebAPI path -> contains space";
+				}
+				if (!_path.starts_with("/")) {
+					throw "Invalid WebAPI path -> must start with '/'";
+				}
+				if (_path.ends_with("/")) {
+					throw "Invalid WebAPI path -> cannot end with '/'";
+				}
+				std::string_view valid_chars{"abcdefghijklmnopqrstuvwxyz_-0123456789/"};
+				for(const char& c: _path)
 					if (!valid_chars.contains(c))
-						throw std::runtime_error("WebAPI registration error -> invalid path: " + m_path);
+						throw "Invalid WebAPI path -> contains an invalid character";
 			}
-			auto get_path() const noexcept
-			{
-				return m_path;
-			}
+			
+        std::string get() const noexcept
+        {
+            return std::string(m_path);
+        }
 
-		private: 
-			std::string m_path;
+        private: 
+            std::string_view m_path;
 	};
 	
 	void start() noexcept;

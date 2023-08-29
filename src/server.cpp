@@ -9,21 +9,20 @@ namespace
 	//describes api metadata
 	struct webapi 
 	{
-		server::webapi_path path;
 		std::string description;
 		http::verb verb;
 		std::vector<http::input_rule> rules;
 		std::vector<std::string> roles;
 		std::function<void(http::request&)> fn;
 		bool is_secure {true};
-		webapi(	const server::webapi_path& _path, 
+		webapi(	
 				const std::string& _description,
 				http::verb _verb,
 				const std::vector<http::input_rule>& _rules,
 				const std::vector<std::string>& _roles,
 				std::function<void(http::request&)> _fn,
 				bool _is_secure
-			): path{_path}, description{_description}, verb{_verb}, rules{_rules}, roles{_roles}, fn{_fn}, is_secure{_is_secure}
+			): description{_description}, verb{_verb}, rules{_rules}, roles{_roles}, fn{_fn}, is_secure{_is_secure}
 		{ }
 	};
 	
@@ -265,7 +264,7 @@ namespace
 		sigaddset(&sigset, SIGINT);
 		sigaddset(&sigset, SIGTERM);
 		sigaddset(&sigset, SIGQUIT);
-		sigprocmask(SIG_BLOCK, &sigset, NULL);
+		sigprocmask(SIG_BLOCK, &sigset, nullptr);
 		int sfd { signalfd(-1, &sigset, 0) };
 		logger::log("signal", "info", "signal interceptor registered");
 		return sfd;
@@ -629,10 +628,9 @@ namespace server
 	{
 		webapi_catalog.insert_or_assign
 		(
-			_path.get_path(),
+			_path.get(),
 			webapi
 				( 
-					_path, 
 					_description,
 					_verb,
 					_rules,
@@ -642,7 +640,7 @@ namespace server
 				)
 		);
 		std::string msg {_is_secure ? " " : " (insecure) "};
-		logger::log("server", "info", "registered" + msg + "WebAPI for path: " + _path.get_path());
+		logger::log("server", "info", "registered" + msg + "WebAPI for path: " + _path.get());
 	}
 
 	void register_webapi(

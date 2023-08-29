@@ -237,7 +237,7 @@ namespace http
 					return false;
 			}
 			if (count <= 0 && errno != EAGAIN) {
-				logger::log("epoll", "error", std::string(__FUNCTION__) + " send() error: " + std::string(strerror(errno)) + " FD: " + std::to_string(fd));
+				logger::log("epoll", "error", "send() error: " + std::string(strerror(errno)) + " FD: " + std::to_string(fd));
 				return true;
 			}
 		}
@@ -284,10 +284,34 @@ namespace http
 	
 	
 	void request::enforce(verb v) const {
-		const std::string methods[] {"GET", "POST"};
+		const std::array<std::string, 2> methods {"GET", "POST"};
 		if (method != methods[int(v)])
 			throw method_not_allowed_exception(method);
-	}	
+	}
+	
+	void request::test_field(const http::input_rule& r, std::string& value)
+	{
+		using enum field_type;
+		switch (r.get_type()) {
+			case INTEGER:
+				if (!is_integer(value))
+					throw invalid_input_exception(r.get_name(), "err.invalidtype");
+				break;
+			case DOUBLE:
+				if (!is_double(value))
+					throw invalid_input_exception(r.get_name(), "err.invalidtype");
+				break;
+			case DATE:
+				if (!is_date(value))
+					throw invalid_input_exception(r.get_name(), "err.invalidtype");
+				break;
+			case STRING:
+				//prevent sql injection
+				replace_str(value, "'", "''");
+				replace_str(value, "\\", "");
+				break;
+		}
+	}
 	
 	//throws invalid_input_exception if any validation rule fails
 	void request::enforce(const std::vector<input_rule>& rules)
@@ -297,35 +321,14 @@ namespace http
 		{
 			if (r.get_required() && !params.contains(r.get_name())) 
 				throw invalid_input_exception(r.get_name(), "err.required");
-			
 			auto& value = params[r.get_name()];
 			value = trim(value);
 			if (r.get_required() && value.empty())
 				throw invalid_input_exception(r.get_name(), "err.required");
-			if (!value.empty()) {
-				using enum field_type;
-				switch (r.get_type()) {
-					case INTEGER:
-						if (!is_integer(value))
-							throw invalid_input_exception(r.get_name(), "err.invalidtype");
-						break;
-					case DOUBLE:
-						if (!is_double(value))
-							throw invalid_input_exception(r.get_name(), "err.invalidtype");
-						break;
-					case DATE:
-						if (!is_date(value))
-							throw invalid_input_exception(r.get_name(), "err.invalidtype");
-						break;
-					case STRING:
-						//prevent sql injection
-						replace_str(value, "'", "''");
-						replace_str(value, "\\", "");
-						break;
-				}
-			}
+			if (!value.empty())
+				test_field(r, value);
 		}
-	}	
+	}
 	
 	void request::parse() 
 	{
@@ -466,20 +469,6 @@ namespace http
 		if (auto value = params.find(name); value != params.end()) 
 			return value->second;
 		else
-			return "";
-	}
-
-	std::string_view request::get_cookie(std::string_view cookieHdr) 
-	{
-		const std::string token{"CPPSESSIONID="};
-		if (auto pos = cookieHdr.find(token); pos!=std::string::npos) {
-			std::string_view val1 = cookieHdr.substr( pos + token.size() );
-			if (auto pos2 = val1.find(";"); pos2!=std::string::npos) {
-				std::string_view val2 = val1.substr(0, pos2);
-				return val2;
-			} else 
-				return val1;
-		} else
 			return "";
 	}
 

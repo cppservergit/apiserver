@@ -202,7 +202,7 @@ namespace http
 		std::string get_mail_body(const std::string& template_file);
 		std::string replace_params(const std::string& template_msg);
 	  private:
-		std::string_view get_cookie(std::string_view cookieHdr);
+		void test_field(const http::input_rule& r, std::string& value);
 		std::string lowercase(std::string s) noexcept;	
 		std::string decode_param(std::string_view value) const noexcept;
 		void parse_param(std::string_view param) noexcept; 
