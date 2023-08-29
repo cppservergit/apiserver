@@ -53,7 +53,7 @@ sudo apt update
 
 Install required packages:
 ```
-sudo apt install g++-12 libssl-dev libpq-dev libcurl4-openssl-dev libldap-dev libldap-dev make -y --no-install-recommends
+sudo apt install g++-12 libssl-dev libpq-dev libcurl4-openssl-dev libldap-dev make -y --no-install-recommends
 ```
 
 Optionally, you can upgrade the rest of the operating system, it may take some minutes and require a restart of the VM:
