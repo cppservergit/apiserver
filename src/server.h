@@ -57,18 +57,18 @@ namespace server
 			consteval webapi_path(std::string_view _path): m_path{_path} 
 			{
 				if (_path.contains(" ")) {
-					throw "Invalid WebAPI path -> contains space";
+					throw std::string("Invalid WebAPI path -> contains space");
 				}
 				if (!_path.starts_with("/")) {
-					throw "Invalid WebAPI path -> must start with '/'";
+					throw std::string("Invalid WebAPI path -> must start with '/'");
 				}
 				if (_path.ends_with("/")) {
-					throw "Invalid WebAPI path -> cannot end with '/'";
+					throw std::string("Invalid WebAPI path -> cannot end with '/'");
 				}
 				std::string_view valid_chars{"abcdefghijklmnopqrstuvwxyz_-0123456789/"};
 				for(const char& c: _path)
 					if (!valid_chars.contains(c))
-						throw "Invalid WebAPI path -> contains an invalid character";
+						throw std::string("Invalid WebAPI path -> contains an invalid character");
 			}
 			
         std::string get() const noexcept
