@@ -187,15 +187,15 @@ namespace http
 		return *this;
 	}
 
-	std::string_view response_stream::view() noexcept {
+	std::string_view response_stream::view() const noexcept {
 		return std::string_view(_buffer);
 	}
 	
-	size_t response_stream::size() noexcept {
+	size_t response_stream::size() const noexcept {
 		return _buffer.size();
 	}
 	
-	const char* response_stream::c_str() noexcept {
+	const char* response_stream::c_str() const noexcept {
 		return _buffer.c_str();
 	}
 	
@@ -204,7 +204,7 @@ namespace http
 		_buffer.append(data, len);
 	}
 	
-	const char* response_stream::data() noexcept {
+	const char* response_stream::data() const noexcept {
 		return _buffer.c_str();
 	}
 	

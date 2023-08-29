@@ -144,11 +144,11 @@ namespace http
 		void set_body(const std::string& body, const std::string& content_type = "application/json", int max_age = 0);
 		void set_content_disposition(std::string_view disposition);
 		void set_origin(std::string_view origin);
-		std::string_view view() noexcept;
-		size_t size() noexcept;
-		const char* c_str() noexcept;
+		std::string_view view() const noexcept;
+		size_t size() const noexcept;
+		const char* c_str() const noexcept;
 		void append(const char* data, size_t len) noexcept;
-		const char* data() noexcept;
+		const char* data() const noexcept;
 		void clear() noexcept;
 		bool write(int fd) noexcept; 
 	  private:
