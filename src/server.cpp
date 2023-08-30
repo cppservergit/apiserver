@@ -41,7 +41,7 @@ namespace
 	inline void sendRedirect(http::request& req, std::string newPath);
 	
 	void db_connect();
-	void log_request(http::request& req, double duration) noexcept;
+	void log_request(const http::request& req, double duration) noexcept;
 	void execute_service(http::request& req);
 	std::string get_invalid_json(std::string_view id, std::string_view description) noexcept;
 	void process_request(http::request& req) noexcept;
@@ -54,6 +54,7 @@ namespace
 	void epoll_handle_connect(int listen_fd, int epoll_fd, std::unordered_map<int, http::request>& buffers) noexcept;
 	void epoll_handle_read(epoll_event ev, std::array<char, 8192>& data) noexcept;
 	void epoll_handle_write(epoll_event ev) noexcept;
+	void epoll_handle_IO(epoll_event ev, std::array<char, 8192>& data) noexcept;
 	void start_epoll(int port) noexcept ;
 	void consumer(std::stop_token tok) noexcept;
 	bool read_request(http::request& req, const char* data, int bytes) noexcept;
@@ -238,7 +239,7 @@ namespace
 			logger::log("service", "error", req.path + " " + error_msg, true);
 	}
 
-	void log_request(http::request& req, double duration) noexcept
+	void log_request(const http::request& req, double duration) noexcept
 	{
 		std::string msg {"fd=$1 remote-ip=$2 $3 path=$4 elapsed-time=$5 user=$6"};
 		msg.replace(msg.find("$1"), 2, std::to_string(req.fd));
@@ -316,10 +317,10 @@ namespace
 		
 		int rc = bind(fd, (struct sockaddr *) &addr, sizeof(addr));
 		if (rc == -1) {
-			logger::log("epoll", "error", "bind() failed  port: " + std::to_string(port) + " " + std::string(strerror(errno)));
+			logger::log("epoll", "error", "bind() failed  port: $1 description: $2", {std::to_string(port), std::string(strerror(errno))});
 			exit(-1);
 		}
-		logger::log("epoll", "info", "listen socket FD: " + std::to_string(fd) + " port: " + std::to_string(port));
+		logger::log("epoll", "info", "listen socket FD: $1 port: $2", {std::to_string(fd), std::to_string(port)});
 		return fd;
 	}
 
@@ -373,7 +374,7 @@ namespace
 			req.clear();
 			int rc = close(req.fd);
 			if (rc == -1)
-				logger::log("epoll", "error", "close FAILED for FD: " + std::to_string(req.fd) + " " + std::string(strerror(errno)));
+				logger::log("epoll", "error", "close FAILED for FD: $1 description: $2", {std::to_string(req.fd), std::string(strerror(errno))});
 		}
 		--g_connections;
 	}
@@ -385,7 +386,7 @@ namespace
 		len = sizeof addr;
 		int fd { accept4(listen_fd, &addr, &len, SOCK_NONBLOCK) };
 		if (fd == -1) {
-			logger::log("epoll", "error", "connection accept FAILED for epoll FD: " + std::to_string(epoll_fd) + " " + std::string(strerror(errno)));
+			logger::log("epoll", "error", "connection accept FAILED for epoll FD: $1 description: $2", {std::to_string(epoll_fd), std::string(strerror(errno))});
 		} else {
 			++g_connections;
 			const char* remote_ip = inet_ntoa(((struct sockaddr_in*)&addr)->sin_addr);
@@ -421,7 +422,7 @@ namespace
 					break;
 				}
 			} else {
-				logger::log("epoll", "error", "read error FD: " + std::to_string(req.fd) + " " + std::string(strerror(errno)));
+				logger::log("epoll", "error", "read error FD: $1 description: $2", {std::to_string(req.fd), std::string(strerror(errno))});
 				req.clear();
 				break;
 			}
@@ -448,10 +449,23 @@ namespace
 		}
 	}
 
+	void epoll_handle_IO(epoll_event ev, std::array<char, 8192>& data) noexcept
+	{
+		if (ev.data.ptr == nullptr) {
+			logger::log("epoll", "error", "epoll_handle_IO() - epoll data ptr is null");
+			return;
+		}
+		if (ev.events & EPOLLIN) 
+			epoll_handle_read(ev, data);
+		else 
+			epoll_handle_write(ev);
+	}
+
+
 	void start_epoll(int port) noexcept 
 	{
 		int epoll_fd {epoll_create1(0)};
-		logger::log("epoll", "info", "starting epoll FD: " + std::to_string(epoll_fd));
+		logger::log("epoll", "info", "starting epoll FD: $1", {std::to_string(epoll_fd)});
 
 		int listen_fd {get_listenfd(port)};
 		listen(listen_fd, SOMAXCONN);
@@ -475,7 +489,7 @@ namespace
 				}
 				else if (m_signal == events[i].data.fd) //shutdown
 				{
-					logger::log("signal", "info", "stop signal received for epoll FD: " + std::to_string(epoll_fd) + " SFD: " + std::to_string(m_signal));
+					logger::log("signal", "info", "stop signal received for epoll FD: $1 SFD: $2", {std::to_string(epoll_fd), std::to_string(m_signal)});
 					exit_loop = true;
 					break;
 				}
@@ -485,14 +499,7 @@ namespace
 				}
 				else // read/write
 				{
-					if (events[i].data.ptr == nullptr) {
-						logger::log("epoll", "error", "epoll data ptr is null - unable to retrieve request object");
-						continue;
-					}
-					if (events[i].events & EPOLLIN) 
-						epoll_handle_read(events[i], data);
-					else 
-						epoll_handle_write(events[i]);
+					epoll_handle_IO(events[i], data);
 				}
 			}
 			if (exit_loop)
@@ -500,9 +507,9 @@ namespace
 		}
 
 		close(listen_fd);
-		logger::log("epoll", "info", "closing listen socket FD: " + std::to_string(listen_fd));
+		logger::log("epoll", "info", "closing listen socket FD: $1", {std::to_string(listen_fd)});
 		close(epoll_fd);
-		logger::log("epoll", "info", "closing epoll FD: " + std::to_string(epoll_fd));
+		logger::log("epoll", "info", "closing epoll FD: $1", {std::to_string(epoll_fd)});
 	}
 
 	void print_server_info(const std::string& pod_name) noexcept 

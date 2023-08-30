@@ -14,10 +14,12 @@
 #include <algorithm>
 #include <thread>
 #include <iostream>
+#include <vector>
 
 namespace logger
 {
 	void log(const std::string& source, const std::string& level, std::string msg, bool add_thread_id = false) noexcept;
+	void log(const std::string& source, const std::string& level, std::string msg, const std::vector<std::string>& fields, bool add_thread_id = false) noexcept;
 	void set_request_id(const std::string& id) noexcept;
 	std::string get_request_id() noexcept;
 }

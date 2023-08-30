@@ -2,7 +2,7 @@
 
 namespace
 {
-	thread_local std::string request_id{""};
+	thread_local std::string request_id;
 }
 
 namespace logger 
@@ -30,7 +30,8 @@ namespace logger
 			}
 		);
 		
-		std::string buffer{""}; buffer.reserve(1023);
+		std::string buffer{""};
+		buffer.reserve(1023);
 		buffer.append("{\"source\":\"" + source + "\"," + "\"level\":\"" + level + "\",\"msg\":\"" + msg + "\",");
 		
 		if (add_thread_id) {
@@ -42,6 +43,18 @@ namespace logger
 		buffer.pop_back();
 		buffer.append("}\n");
 		std::clog << buffer;
+	}
+	
+	void log(const std::string& source, const std::string& level, std::string msg, const std::vector<std::string>& values, bool add_thread_id) noexcept
+	{
+		int i{1};
+		for (const auto& v: values) {
+			std::string item {"$" + std::to_string(i)};
+			if (auto pos {msg.find(item)}; pos != std::string::npos)
+				msg.replace(pos, item.size(), v);
+			++i;
+		}
+		log(source, level, msg, add_thread_id);
 	}
 
 }
