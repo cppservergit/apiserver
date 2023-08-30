@@ -54,7 +54,7 @@ namespace server
 	struct webapi_path
 	{
 		public:
-			consteval webapi_path(std::string_view _path): m_path{_path} 
+			consteval explicit webapi_path(std::string_view _path): m_path{_path} 
 			{
 				if (_path.contains(" ")) {
 					throw std::string("Invalid WebAPI path -> contains space");

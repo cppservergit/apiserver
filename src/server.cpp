@@ -41,10 +41,19 @@ namespace
 	inline void sendRedirect(http::request& req, std::string newPath);
 	
 	void db_connect();
+	void log_request(http::request& req, double duration) noexcept;
+	void execute_service(http::request& req);
+	std::string get_invalid_json(std::string_view id, std::string_view description) noexcept;
+	void process_request(http::request& req) noexcept;
 	void http_server(http::request& req) noexcept;
 	
 	int get_signalfd() noexcept;
 	int get_listenfd(int port) noexcept;
+	void epoll_add_event(int fd, int epoll_fd, uint32_t event_flags) noexcept;
+	void epoll_handle_close(epoll_event ev) noexcept;
+	void epoll_handle_connect(int listen_fd, int epoll_fd, std::unordered_map<int, http::request>& buffers) noexcept;
+	void epoll_handle_read(epoll_event ev, std::array<char, 8192>& data) noexcept;
+	void epoll_handle_write(epoll_event ev) noexcept;
 	void start_epoll(int port) noexcept ;
 	void consumer(std::stop_token tok) noexcept;
 	bool read_request(http::request& req, const char* data, int bytes) noexcept;
@@ -175,6 +184,72 @@ namespace
 		}
 	}
 
+	void execute_service(http::request& req)
+	{
+		if (auto obj = webapi_catalog.find(req.path); obj != webapi_catalog.end()) 
+		{
+			req.enforce(obj->second.verb);
+			if (obj->second.rules.size())
+				req.enforce(obj->second.rules);
+			if (obj->second.is_secure)
+				req.check_security(obj->second.roles);
+			obj->second.fn(req);
+		}
+		else
+			throw http::resource_not_found_exception(req.path);
+	}
+
+	std::string get_invalid_json(std::string_view id, std::string_view description) noexcept
+	{
+		std::string error {R"({"status": "INVALID", "validation": {"id": "$1", "description": "$2"}})"};
+		error.replace(error.find("$1"), 2, id);
+		error.replace(error.find("$2"), 2, description);
+		return error;
+	}
+
+	void process_request(http::request& req) noexcept
+	{
+		std::string error_msg;
+		try {
+			if (req.method == "OPTIONS") //preflight request
+				send_options(req);
+			else 
+				execute_service(req); //run lambda
+		} catch (const http::invalid_input_exception& e) { //thrown by request::enforce()
+			error_msg = std::string(e.what());
+			req.response.set_body(get_invalid_json(e.get_field_name(), e.get_error_description()));
+		} catch (const http::access_denied_exception& e) { //thrown by request::check_security()
+			error_msg = std::string(e.what());
+			req.response.set_body(get_invalid_json("_dialog_", "err.accessdenied"));
+		} catch (const http::login_required_exception& e) { //thrown by request::check_security()
+			error_msg = std::string(e.what());
+			send401(req);
+		} catch (const http::resource_not_found_exception& e) { //may be thrown by lambda service
+			error_msg = std::string(e.what());
+			send404(req);
+		} catch (const http::method_not_allowed_exception& e) { //thrown by request::enforce(verb)
+			error_msg = std::string(e.what());
+			send405(req);
+		} catch (const std::exception& e) { //thrown by sql:: functions
+			error_msg = std::string(e.what());
+			req.response.set_body(R"({"status": "ERROR", "description": "Service error"})");
+		}
+		if (!error_msg.empty())
+			logger::log("service", "error", req.path + " " + error_msg, true);
+	}
+
+	void log_request(http::request& req, double duration) noexcept
+	{
+		std::string msg {"fd=$1 remote-ip=$2 $3 path=$4 elapsed-time=$5 user=$6"};
+		msg.replace(msg.find("$1"), 2, std::to_string(req.fd));
+		msg.replace(msg.find("$2"), 2, req.remote_ip);
+		msg.replace(msg.find("$3"), 2, req.method);
+		msg.replace(msg.find("$4"), 2, req.path);
+		msg.replace(msg.find("$5"), 2, std::to_string(duration));
+		msg.replace(msg.find("$6"), 2, req.user_info.login);
+		logger::log("access-log", "info", msg, true);
+	}
+
 	void http_server(http::request& req) noexcept
 	{
 		++g_active_threads;	
@@ -184,45 +259,7 @@ namespace
 		auto start = std::chrono::high_resolution_clock::now();
 
 		if (!req.errcode) {
-			try {
-				if (req.method == "OPTIONS") //preflight request
-					send_options(req);
-				else {
-					if (auto obj = webapi_catalog.find(req.path); obj != webapi_catalog.end()) 
-					{
-						req.enforce(obj->second.verb);
-						if (obj->second.rules.size())
-							req.enforce(obj->second.rules);
-						if (obj->second.is_secure)
-							req.check_security(obj->second.roles);
-						obj->second.fn(req); //run lambda service
-					}
-					else
-						throw http::resource_not_found_exception(req.path);
-				}
-			} catch (const http::invalid_input_exception& e) { //thrown by request::enforce()
-				logger::log("service", "error", req.path + " " + e.what(), true);
-				std::string error {R"({"status": "INVALID", "validation": {"id": "$1", "description": "$2"}})"};
-				error.replace(error.find("$1"), 2, e.get_field_name());
-				error.replace(error.find("$2"), 2, e.get_error_description());
-				req.response.set_body(error);
-			} catch (const http::access_denied_exception& e) { //thrown by request::check_security()
-				logger::log("security", "error", req.path + " " + e.what(), true);
-				std::string error {R"({"status": "INVALID", "validation": {"id": "_dialog_", "description": "err.accessdenied"}})"};
-				req.response.set_body(error);
-			} catch (const http::login_required_exception& e) { //thrown by request::check_security()
-				logger::log("security", "error", req.path + " " + e.what(), true);
-				send401(req);
-			} catch (const http::resource_not_found_exception& e) { //may be thrown by lambda service
-				logger::log("service", "error", req.path + " " + e.what(), true);
-				send404(req);
-			} catch (const http::method_not_allowed_exception& e) { //thrown by request::enforce(verb)
-				logger::log("security", "error", req.path + " " + e.what(), true);
-				send405(req);
-			} catch (const std::exception& e) { //thrown by sql:: functions
-				logger::log("service", "error", req.path + " " + std::string(e.what()), true);
-				req.response.set_body(R"({"status": "ERROR", "description": "Service error"})");
-			}
+			process_request(req);
 		} else
 			send400(req);
 		
@@ -230,12 +267,7 @@ namespace
 		std::chrono::duration <double>elapsed = finish - start;				
 
 		if (env::http_log_enabled())
-			logger::log("access-log", "info", "fd=" + std::to_string(req.fd) 
-				+ " remote-ip=" + req.remote_ip + " "
-				+ req.method
-				+ " path=" + req.path 
-				+ " elapsed-time=" + std::to_string(elapsed.count()) 
-				+ " user=" + req.user_info.login, true);
+			log_request(req, elapsed.count());
 
 		g_total_time += elapsed.count();
 		++g_counter;
@@ -324,6 +356,98 @@ namespace
 		logger::log("pool", "info", "stopping worker thread", true);
 	}
 
+	void epoll_add_event(int fd, int epoll_fd, uint32_t event_flags) noexcept
+	{
+		epoll_event event;
+		event.data.fd = fd;
+		event.events = event_flags;
+		epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event);
+	}
+
+	void epoll_handle_close(epoll_event ev) noexcept
+	{
+		if (ev.data.ptr == nullptr) {
+			logger::log("epoll", "error", "EPOLLRDHUP epoll data ptr is null - unable to retrieve request object");
+		} else {
+			http::request& req = *static_cast<http::request*>(ev.data.ptr);
+			req.clear();
+			int rc = close(req.fd);
+			if (rc == -1)
+				logger::log("epoll", "error", "close FAILED for FD: " + std::to_string(req.fd) + " " + std::string(strerror(errno)));
+		}
+		--g_connections;
+	}
+
+	void epoll_handle_connect(int listen_fd, int epoll_fd, std::unordered_map<int, http::request>& buffers) noexcept
+	{
+		struct sockaddr addr;
+		socklen_t len;
+		len = sizeof addr;
+		int fd { accept4(listen_fd, &addr, &len, SOCK_NONBLOCK) };
+		if (fd == -1) {
+			logger::log("epoll", "error", "connection accept FAILED for epoll FD: " + std::to_string(epoll_fd) + " " + std::string(strerror(errno)));
+		} else {
+			++g_connections;
+			const char* remote_ip = inet_ntoa(((struct sockaddr_in*)&addr)->sin_addr);
+			epoll_event event;
+			if (buffers.contains(fd)) {
+				http::request& req = buffers[fd];
+				req.remote_ip = std::string(remote_ip);
+				req.fd = fd;
+				req.epoll_fd = epoll_fd;
+				event.data.ptr = &req;
+			} else {
+				auto& pair = *buffers.emplace(fd, http::request(epoll_fd, fd, remote_ip)).first;
+				event.data.ptr = &pair.second;
+			}
+			event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+			epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event);
+		}
+	}
+
+	void epoll_handle_read(epoll_event ev, std::array<char, 8192>& data) noexcept
+	{
+		http::request& req = *static_cast<http::request*>(ev.data.ptr);
+		bool run_task {false};
+		while (true) 
+		{
+			int count = read(req.fd, data.data(), data.size());
+			if (count == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+				break;
+			}
+			if (count > 0) {
+				if (read_request(req, data.data(), count)) {
+					run_task = true;
+					break;
+				}
+			} else {
+				logger::log("epoll", "error", "read error FD: " + std::to_string(req.fd) + " " + std::string(strerror(errno)));
+				req.clear();
+				break;
+			}
+		}
+		if (run_task) {
+			worker_params wp {req}; //producer - dispatch async task
+			{
+				std::scoped_lock lock {m_mutex};
+				m_queue.push(wp);
+			}
+			m_cond.notify_all();
+		}
+	}
+	
+	void epoll_handle_write(epoll_event ev) noexcept
+	{
+		http::request& req = *static_cast<http::request*>(ev.data.ptr);
+		if (req.response.write(req.fd)) {
+			req.clear();
+			epoll_event event;
+			event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+			event.data.ptr = &req;
+			epoll_ctl(req.epoll_fd, EPOLL_CTL_MOD, req.fd, &event);
+		}
+	}
+
 	void start_epoll(int port) noexcept 
 	{
 		int epoll_fd {epoll_create1(0)};
@@ -332,15 +456,8 @@ namespace
 		int listen_fd {get_listenfd(port)};
 		listen(listen_fd, SOMAXCONN);
 		
-		epoll_event event_listen;
-		event_listen.data.fd = listen_fd;
-		event_listen.events = EPOLLIN;
-		epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_fd, &event_listen);
-		  
-		epoll_event event_signal;
-		event_signal.data.fd = m_signal;
-		event_signal.events = EPOLLIN;
-		epoll_ctl(epoll_fd, EPOLL_CTL_ADD, m_signal, &event_signal);
+		epoll_add_event(listen_fd, epoll_fd, EPOLLIN);
+		epoll_add_event(m_signal, epoll_fd, EPOLLIN);
 
 		std::unordered_map<int, http::request> buffers;
 		std::array<char, 8192> data;
@@ -354,17 +471,7 @@ namespace
 			{
 				if (events[i].events & EPOLLRDHUP || events[i].events & EPOLLHUP || events[i].events & EPOLLERR)
 				{
-					if (events[i].data.ptr == nullptr) {
-						logger::log("epoll", "error", "epoll data ptr is null - unable to retrieve request object");
-						continue;
-					}
-					http::request& req = *static_cast<http::request*>(events[i].data.ptr);
-					req.clear();
-					int fd {req.fd};
-					int rc = close(fd);
-					--g_connections;
-					if (rc == -1)
-						logger::log("epoll", "error", "close FAILED for FD: " + std::to_string(fd) + " " + std::string(strerror(errno)));
+					epoll_handle_close(events[i]);
 				}
 				else if (m_signal == events[i].data.fd) //shutdown
 				{
@@ -374,31 +481,7 @@ namespace
 				}
 				else if (listen_fd == events[i].data.fd) // new connection.
 				{
-					struct sockaddr addr;
-					socklen_t len;
-					len = sizeof addr;
-					int fd { accept4(listen_fd, &addr, &len, SOCK_NONBLOCK) };
-					if (fd == -1) {
-						logger::log("epoll", "error", "connection accept FAILED for epoll FD: " + std::to_string(epoll_fd) + " " + std::string(strerror(errno)));
-						continue;
-					}
-					++g_connections;
-					const char* remote_ip = inet_ntoa(((struct sockaddr_in*)&addr)->sin_addr);
-					
-					//store pointer to request object
-					epoll_event event;
-					if (buffers.contains(fd)) {
-						http::request& req = buffers[fd];
-						req.remote_ip = std::string(remote_ip);
-						req.fd = fd;
-						req.epoll_fd = epoll_fd;
-						event.data.ptr = &req;
-					} else {
-						auto& pair = *buffers.emplace(fd, http::request(epoll_fd, fd, remote_ip)).first;
-						event.data.ptr = &pair.second;
-					}
-					event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
-					epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event);
+					epoll_handle_connect(listen_fd, epoll_fd, buffers);
 				}
 				else // read/write
 				{
@@ -406,45 +489,10 @@ namespace
 						logger::log("epoll", "error", "epoll data ptr is null - unable to retrieve request object");
 						continue;
 					}
-					http::request& req = *static_cast<http::request*>(events[i].data.ptr);
-					int fd {req.fd};
-					
-					if (events[i].events & EPOLLIN) {
-						bool run_task {false};
-						while (true) 
-						{
-							int count = read(fd, data.data(), data.size());
-							if (count == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-								break;
-							}
-							if (count > 0) {
-								if (read_request(req, data.data(), count)) {
-									run_task = true;
-									break;
-								}
-							}
-							else {
-								logger::log("epoll", "error", "read error FD: " + std::to_string(fd) + " " + std::string(strerror(errno)));
-								req.clear();
-								break;
-							}
-						}
-						if (run_task) {
-							//producer
-							worker_params wp {req};
-							{
-								std::scoped_lock lock {m_mutex};
-								m_queue.push(wp);
-							}
-							m_cond.notify_all();
-						}
-					} else if (req.response.write(fd)) {
-							req.clear();
-							epoll_event event;
-							event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
-							event.data.ptr = &req;
-							epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event);
-					}
+					if (events[i].events & EPOLLIN) 
+						epoll_handle_read(events[i], data);
+					else 
+						epoll_handle_write(events[i]);
 				}
 			}
 			if (exit_loop)
