@@ -85,18 +85,18 @@ namespace server
 	void register_webapi(
 		const webapi_path& _path, 
 		const std::string& _description, 
-		http::verb _verb, 
+		const http::verb& _verb, 
 		const std::vector<http::input_rule>& _rules, 
 		const std::vector<std::string>& _roles, 
-		std::function<void(http::request&)> _fn,
+		const std::function<void(http::request&)>& _fn,
 		bool _is_secure = true
 	);
 
 	void register_webapi(
 		const webapi_path& _path, 
 		const std::string& _description, 
-		http::verb _verb, 
-		std::function<void(http::request&)> _fn,
+		const http::verb& _verb, 
+		const std::function<void(http::request&)>& _fn,
 		bool _is_secure = true
 	);
 	

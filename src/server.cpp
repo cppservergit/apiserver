@@ -28,17 +28,17 @@ namespace
 	
 	std::unordered_map<std::string, webapi> webapi_catalog;
 		
-	std::atomic<size_t> 	g_counter{0};
-	std::atomic<double> 	g_total_time{0};
-	std::atomic<int> 		g_active_threads{0};
-	std::atomic<size_t> 	g_connections{0};
+	std::atomic<size_t> g_counter{0};
+	std::atomic<double> g_total_time{0};
+	std::atomic			g_active_threads{0};
+	std::atomic<size_t> g_connections{0};
 
 	inline void send_options(http::request& req);
 	inline void send400(http::request& req);
 	inline void send401(http::request& req);
 	inline void send404(http::request& req);
 	inline void send405(http::request& req);
-	inline void sendRedirect(http::request& req, std::string newPath);
+	inline void sendRedirect(http::request& req, const std::string& newPath);
 	
 	void db_connect();
 	void log_request(const http::request& req, double duration) noexcept;
@@ -54,6 +54,7 @@ namespace
 	void epoll_handle_close(epoll_event ev) noexcept;
 	void epoll_handle_connect(int listen_fd, int epoll_fd, std::unordered_map<int, http::request>& buffers) noexcept;
 	void epoll_abort_request(http::request& req) noexcept;
+	void run_async_task(http::request& req) noexcept;
 	void epoll_handle_read(epoll_event ev, std::array<char, 8192>& data) noexcept;
 	void epoll_handle_write(epoll_event ev) noexcept;
 	void epoll_handle_IO(epoll_event ev, std::array<char, 8192>& data) noexcept;
@@ -156,7 +157,7 @@ namespace
 
 	}
 
-	inline void sendRedirect(http::request& req, std::string newPath) {
+	inline void sendRedirect(http::request& req, const std::string& newPath) {
 		std::string msg {"301 Moved permanently"};
 		http::response_stream& res = req.response;
 		res << "HTTP/1.1 301 Moved permanently" << "\r\n"
@@ -326,8 +327,7 @@ namespace
 		addr.sin_family = AF_INET;
 		addr.sin_addr.s_addr = htons(INADDR_ANY);
 		
-		int rc = bind(fd, (struct sockaddr *) &addr, sizeof(addr));
-		if (rc == -1) {
+		if (int rc = bind(fd, (struct sockaddr *) &addr, sizeof(addr)); rc == -1) {
 			logger::log("epoll", "error", "bind() failed  port: $1 description: $2", {std::to_string(port), std::string(strerror(errno))});
 			exit(-1);
 		}
@@ -427,6 +427,21 @@ namespace
 		epoll_ctl(req.epoll_fd, EPOLL_CTL_MOD, req.fd, &event);		
 	}
 
+	void run_async_task(http::request& req) noexcept
+	{
+		if (auto obj = webapi_catalog.find(req.path); obj != webapi_catalog.end()) 
+		{
+			worker_params wp {req, obj->second};
+			{
+				std::scoped_lock lock {m_mutex};
+				m_queue.push(wp);
+			}
+			m_cond.notify_all();
+		}
+		else 
+			epoll_abort_request(req);
+	}
+
 	void epoll_handle_read(epoll_event ev, std::array<char, 8192>& data) noexcept
 	{
 		http::request& req = *static_cast<http::request*>(ev.data.ptr);
@@ -435,7 +450,7 @@ namespace
 		{
 			int count = read(req.fd, data.data(), data.size());
 			if (count == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-				break;
+				return;
 			}
 			if (count > 0) {
 				if (read_request(req, data.data(), count)) {
@@ -445,24 +460,11 @@ namespace
 			} else {
 				logger::log("epoll", "error", "read error FD: $1 description: $2", {std::to_string(req.fd), std::string(strerror(errno))});
 				req.clear();
-				break;
+				return;
 			}
 		}
-		if (run_task) {
-			//producer - dispatch async task
-			if (auto obj = webapi_catalog.find(req.path); obj != webapi_catalog.end()) 
-			{
-				worker_params wp {req, obj->second};
-				{
-					std::scoped_lock lock {m_mutex};
-					m_queue.push(wp);
-				}
-				m_cond.notify_all();
-			}
-			else {
-				epoll_abort_request(req);
-			}
-		}
+		if (run_task)
+			run_async_task(req);
 	}
 	
 	void epoll_handle_write(epoll_event ev) noexcept
@@ -503,12 +505,13 @@ namespace
 
 		std::unordered_map<int, http::request> buffers;
 		std::array<char, 8192> data;
-		const int MAXEVENTS = 64;
-		epoll_event events[MAXEVENTS];
+		constexpr int MAXEVENTS = 64;
+		std::array<epoll_event, MAXEVENTS> events;
 		bool exit_loop {false};
+
 		while (true)
 		{
-			int n_events = epoll_wait(epoll_fd, events, MAXEVENTS, -1);
+			int n_events = epoll_wait(epoll_fd, events.data(), MAXEVENTS, -1);
 			for (int i = 0; i < n_events; i++)
 			{
 				if (events[i].events & EPOLLRDHUP || events[i].events & EPOLLHUP || events[i].events & EPOLLERR)
@@ -695,10 +698,10 @@ namespace server
 	void register_webapi(
 						const webapi_path& _path, 
 						const std::string& _description,
-						http::verb _verb,
+						const http::verb& _verb,
 						const std::vector<http::input_rule>& _rules,
 						const std::vector<std::string>& _roles,
-						std::function<void(http::request&)> _fn,
+						const std::function<void(http::request&)>& _fn,
 						bool _is_secure
 						)
 	{
@@ -722,8 +725,8 @@ namespace server
 	void register_webapi(
 						const webapi_path& _path, 
 						const std::string& _description, 
-						http::verb _verb, 
-						std::function<void(http::request&)> _fn, 
+						const http::verb& _verb, 
+						const std::function<void(http::request&)>& _fn, 
 						bool _is_secure
 						)
 	{
