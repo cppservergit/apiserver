@@ -244,20 +244,6 @@ namespace http
 		return true;
 	}
 
-	request::request(int epollfd, int fdes, const char* ip): epoll_fd{epollfd}, fd {fdes}, remote_ip {ip}
-	{
-		headers.reserve(10);
-		params.reserve(10);
-		payload.reserve(8191);
-	}
-
-	request::request() 
-	{
-		headers.reserve(10);
-		params.reserve(10);
-		payload.reserve(8191);
-	}
-	
 	void request::clear() 
 	{
 		response.clear();

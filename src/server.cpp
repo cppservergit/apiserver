@@ -409,8 +409,8 @@ namespace
 				req.epoll_fd = epoll_fd;
 				event.data.ptr = &req;
 			} else {
-				auto& pair = *buffers.emplace(fd, http::request(epoll_fd, fd, remote_ip)).first;
-				event.data.ptr = &pair.second;
+				auto [iter, success] {buffers.try_emplace(fd, epoll_fd, fd, remote_ip)};
+				event.data.ptr = &iter->second;
 			}
 			event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
 			epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event);

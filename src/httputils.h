@@ -116,7 +116,7 @@ namespace http
 
 	struct input_rule {
 		public:
-			input_rule(std::string n, field_type d, bool r) noexcept: name{n}, datatype{d}, required{r} {  }
+			input_rule(const std::string& n, field_type d, bool r) noexcept: name{n}, datatype{d}, required{r} {  }
 			auto get_name() const {return name;}
 			auto get_type() const {return datatype;}
 			auto get_required() const {return required;}
@@ -162,6 +162,7 @@ namespace http
 	  public:
 		int epoll_fd;
 		int fd;
+		std::string remote_ip;
 		size_t bodyStartPos{0};
 		size_t contentLength{0};
 		bool isMultipart{false};
@@ -172,7 +173,6 @@ namespace http
 		std::string token;
 		int errcode{0};
 		std::string errmsg;
-		std::string remote_ip;
 		std::string origin{"null"};
 		std::string payload;
 		std::unordered_map<std::string, std::string> headers;
@@ -180,8 +180,16 @@ namespace http
 		std::vector<input_rule> input_rules;
 		jwt::user_info user_info;
 		response_stream response;
-		request();
-		request(int epollfd, int fdes, const char* ip);
+		
+		explicit request(int epollfd, int fdes, const char* ip): epoll_fd{epollfd}, fd {fdes}, remote_ip {ip}
+		{
+			headers.reserve(10);
+			params.reserve(10);
+			payload.reserve(8191);
+		}
+
+		request() {}
+		
 		void clear();
 		void parse();
 		bool eof();
