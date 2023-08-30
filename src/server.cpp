@@ -20,7 +20,7 @@ namespace
 				http::verb _verb,
 				const std::vector<http::input_rule>& _rules,
 				const std::vector<std::string>& _roles,
-				std::function<void(http::request&)> _fn,
+				const std::function<void(http::request&)>& _fn,
 				bool _is_secure
 			): description{_description}, verb{_verb}, rules{_rules}, roles{_roles}, fn{_fn}, is_secure{_is_secure}
 		{ }
