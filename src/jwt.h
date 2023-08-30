@@ -31,7 +31,7 @@ namespace jwt
 		time_t exp{0};
 	};
 	
-	std::string get_token(const std::string& userlogin, const std::string& mail, const std::string& roles) noexcept;
+	std::string get_token(std::string_view username, std::string_view mail, std::string_view roles) noexcept;
 	std::pair<bool, user_info> is_valid(const std::string& token);
 }
 

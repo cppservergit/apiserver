@@ -140,21 +140,27 @@ namespace
 		return jwt::user_info {std::string(login), std::string(mail), std::string(roles), std::stol(std::string(exp))};
 	}
 	
+	std::string create_payload(std::string_view userlogin, std::string_view mail, std::string_view roles, const time_t& now) noexcept
+	{
+		const auto exp {std::to_string(now)};
+		std::string fmt {R"({"login":"$login","mail":"$mail","roles":"$roles","exp":$exp})"};
+		fmt.replace(fmt.find("$login"), 6, userlogin);
+		fmt.replace(fmt.find("$mail"), 5, mail);
+		fmt.replace(fmt.find("$roles"), 6, roles);
+		fmt.replace(fmt.find("$exp"), 4, exp);
+		return fmt;
+	}
+	
 }
 
 namespace jwt
 {
-	std::string get_token(const std::string& userlogin, const std::string& mail, const std::string& roles) noexcept
+	std::string get_token(std::string_view username, std::string_view mail, std::string_view roles) noexcept
 	{
 		static jwt_config config;
 		const time_t now {std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) + config.duration}; 
 		const std::string json_header {R"({"alg":"HS256","typ":"JWT"})"};
-		
-		std::array<char, 512> buf;
-		//const std::string fmt {R"({"login":"%s","mail":"%s","roles":"%s","exp":%d})"};
-		std::snprintf(buf.data(), buf.size(), "{\"login\":\"%s\",\"mail\":\"%s\",\"roles\":\"%s\",\"exp\":%ld}", userlogin.c_str(), mail.c_str(), roles.c_str(), now);
-		const std::string json_payload {buf.data()};
-		
+		const std::string json_payload {create_payload(username, mail, roles, now)};
 		std::string buffer {base64_encode(json_header) + "." + base64_encode(json_payload)};
 		auto signature {sign(buffer, config.secret)};
 		return buffer.append(".").append(signature);
