@@ -42,16 +42,18 @@ namespace
 	
 	void db_connect();
 	void log_request(const http::request& req, double duration) noexcept;
-	void execute_service(http::request& req);
+	void execute_service(http::request& req, const webapi& api);
 	std::string get_invalid_json(std::string_view id, std::string_view description) noexcept;
-	void process_request(http::request& req) noexcept;
-	void http_server(http::request& req) noexcept;
+	std::string format(std::string msg, const std::vector<std::string>& values) noexcept;
+	void process_request(http::request& req, const webapi& api) noexcept;
+	void http_server(http::request& req, const webapi& api) noexcept;
 	
 	int get_signalfd() noexcept;
 	int get_listenfd(int port) noexcept;
 	void epoll_add_event(int fd, int epoll_fd, uint32_t event_flags) noexcept;
 	void epoll_handle_close(epoll_event ev) noexcept;
 	void epoll_handle_connect(int listen_fd, int epoll_fd, std::unordered_map<int, http::request>& buffers) noexcept;
+	void epoll_abort_request(http::request& req) noexcept;
 	void epoll_handle_read(epoll_event ev, std::array<char, 8192>& data) noexcept;
 	void epoll_handle_write(epoll_event ev) noexcept;
 	void epoll_handle_IO(epoll_event ev, std::array<char, 8192>& data) noexcept;
@@ -63,6 +65,7 @@ namespace
 
 	struct worker_params {
 		http::request& req;
+		const webapi& api;
 	};
 	
 	std::queue<worker_params> m_queue;
@@ -185,21 +188,6 @@ namespace
 		}
 	}
 
-	void execute_service(http::request& req)
-	{
-		if (auto obj = webapi_catalog.find(req.path); obj != webapi_catalog.end()) 
-		{
-			req.enforce(obj->second.verb);
-			if (obj->second.rules.size())
-				req.enforce(obj->second.rules);
-			if (obj->second.is_secure)
-				req.check_security(obj->second.roles);
-			obj->second.fn(req);
-		}
-		else
-			throw http::resource_not_found_exception(req.path);
-	}
-
 	std::string get_invalid_json(std::string_view id, std::string_view description) noexcept
 	{
 		std::string error {R"({"status": "INVALID", "validation": {"id": "$1", "description": "$2"}})"};
@@ -208,14 +196,37 @@ namespace
 		return error;
 	}
 
-	void process_request(http::request& req) noexcept
+	std::string format(std::string msg, const std::vector<std::string>& values) noexcept
+	{
+		int i{1};
+		for (const auto& v: values) {
+			std::string item {"$"};
+			item.append(std::to_string(i));
+			if (auto pos {msg.find(item)}; pos != std::string::npos)
+				msg.replace(pos, item.size(), v);
+			++i;
+		}
+		return msg;
+	}
+
+	void execute_service(http::request& req, const webapi& api)
+	{
+		req.enforce(api.verb);
+		if (api.rules.size())
+			req.enforce(api.rules);
+		if (api.is_secure)
+			req.check_security(api.roles);
+		api.fn(req);
+	}
+
+	void process_request(http::request& req, const webapi& api) noexcept
 	{
 		std::string error_msg;
 		try {
 			if (req.method == "OPTIONS") //preflight request
 				send_options(req);
 			else 
-				execute_service(req); //run lambda
+				execute_service(req, api); //run lambda
 		} catch (const http::invalid_input_exception& e) { //thrown by request::enforce()
 			error_msg = std::string(e.what());
 			req.response.set_body(get_invalid_json(e.get_field_name(), e.get_error_description()));
@@ -236,7 +247,7 @@ namespace
 			req.response.set_body(R"({"status": "ERROR", "description": "Service error"})");
 		}
 		if (!error_msg.empty())
-			logger::log("service", "error", req.path + " " + error_msg, true);
+			logger::log("service", "error", "$1, $2", {req.path, error_msg}, true);
 	}
 
 	void log_request(const http::request& req, double duration) noexcept
@@ -251,7 +262,7 @@ namespace
 		logger::log("access-log", "info", msg, true);
 	}
 
-	void http_server(http::request& req) noexcept
+	void http_server(http::request& req, const webapi& api) noexcept
 	{
 		++g_active_threads;	
 
@@ -260,7 +271,7 @@ namespace
 		auto start = std::chrono::high_resolution_clock::now();
 
 		if (!req.errcode) {
-			process_request(req);
+			process_request(req, api);
 		} else
 			send400(req);
 		
@@ -345,7 +356,7 @@ namespace
 			lock.unlock();
 			
 			//---processing task (run microservice)
-			http_server(params.req);
+			http_server(params.req, params.api);
 			
 			epoll_event event;
 			event.events = EPOLLOUT | EPOLLET | EPOLLRDHUP;
@@ -406,6 +417,16 @@ namespace
 		}
 	}
 
+	void epoll_abort_request(http::request& req) noexcept 
+	{
+		logger::log("epoll", "error", "API not found: $1", {req.path});
+		send404(req);
+		epoll_event event;
+		event.events = EPOLLOUT | EPOLLET | EPOLLRDHUP;
+		event.data.ptr = &req;
+		epoll_ctl(req.epoll_fd, EPOLL_CTL_MOD, req.fd, &event);		
+	}
+
 	void epoll_handle_read(epoll_event ev, std::array<char, 8192>& data) noexcept
 	{
 		http::request& req = *static_cast<http::request*>(ev.data.ptr);
@@ -428,12 +449,19 @@ namespace
 			}
 		}
 		if (run_task) {
-			worker_params wp {req}; //producer - dispatch async task
+			//producer - dispatch async task
+			if (auto obj = webapi_catalog.find(req.path); obj != webapi_catalog.end()) 
 			{
-				std::scoped_lock lock {m_mutex};
-				m_queue.push(wp);
+				worker_params wp {req, obj->second};
+				{
+					std::scoped_lock lock {m_mutex};
+					m_queue.push(wp);
+				}
+				m_cond.notify_all();
 			}
-			m_cond.notify_all();
+			else {
+				epoll_abort_request(req);
+			}
 		}
 	}
 	
@@ -514,11 +542,11 @@ namespace
 
 	void print_server_info(const std::string& pod_name) noexcept 
 	{
-		logger::log("env", "info", "port: " + std::to_string(env::port()));
-		logger::log("env", "info", "pool size: " + std::to_string(env::pool_size()));
-		logger::log("env", "info", "login log: " + std::to_string(env::login_log_enabled()));
-		logger::log("env", "info", "http log: " + std::to_string(env::http_log_enabled()));
-		logger::log("env", "info", "jwt exp: " + std::to_string(env::jwt_expiration()));
+		logger::log("env", "info", "port: $1", {std::to_string(env::port())});
+		logger::log("env", "info", "pool size: $1", {std::to_string(env::pool_size())});
+		logger::log("env", "info", "login log: $1", {std::to_string(env::login_log_enabled())});
+		logger::log("env", "info", "http log: $1", {std::to_string(env::http_log_enabled())});
+		logger::log("env", "info", "jwt exp: $1", {std::to_string(env::jwt_expiration())});
 		
 		std::string msg1; msg1.reserve(255);
 		std::string msg2; msg1.reserve(255);
@@ -646,20 +674,13 @@ namespace
 				std::string login{req.get_param("username")};
 				std::string password{req.get_param("password")};
 				if (auto lr {login::bind(login, password)}; lr.ok()) {
-					//return JWT token
 					const std::string token {jwt::get_token(login, lr.get_email(), lr.get_roles())};
-					
-					const std::string login_ok { R"({"status":"OK","data":[{"displayname":")" + lr.get_display_name() + R"(",)" + 
-					R"("token_type":"bearer","id_token":")" + token + R"("}]})"};
-					
+					const std::string login_ok {format(R"({"status":"OK","data":[{"displayname":"$1","token_type":"bearer","id_token":"$2"}]})", {lr.get_display_name(), token})};
 					req.response.set_body(login_ok);
 					if (env::login_log_enabled())
-						logger::log("security", "info", "login OK - user: " + login 
-						+ " IP: " + req.remote_ip 
-						+ " token: " + token 
-						+ " roles: " + lr.get_roles(), true);
+						logger::log("security", "info", "login OK - user: $1 IP: $2 token: $3 roles: $4", {login, req.remote_ip, token, lr.get_roles()}, true);
 				} else {
-					logger::log("security", "warn", "login failed - user: " + login + " IP: " + req.remote_ip, true);
+					logger::log("security", "warn", "login failed - user: $1 IP: $2", {login, req.remote_ip}, true);
 					const std::string invalid_login = R"({"status": "INVALID", "validation": {"id": "login", "description": "err.invalidcredentials"}})";
 					req.response.set_body(invalid_login);
 				}
@@ -695,7 +716,7 @@ namespace server
 				)
 		);
 		std::string msg {_is_secure ? " " : " (insecure) "};
-		logger::log("server", "info", "registered" + msg + "WebAPI for path: " + _path.get());
+		logger::log("server", "info", "registered $1 WebAPI for path: $2", {msg, _path.get()});
 	}
 
 	void register_webapi(
@@ -766,7 +787,7 @@ namespace server
 		
 		start_epoll(port);
 
-		logger::log("server", "info", pod_name + " shutting down...");
+		logger::log("server", "info", "$1 shutting down...", {pod_name});
 		
 		//shutdown workers
 		for (const auto& s: stops) {
