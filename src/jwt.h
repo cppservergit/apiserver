@@ -16,6 +16,7 @@
 #include <ctime>
 #include <chrono>
 #include <algorithm>
+#include <array>
 #include <openssl/hmac.h>
 #include "logger.h"
 #include "env.h"

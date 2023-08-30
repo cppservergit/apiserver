@@ -37,7 +37,7 @@ namespace
 	//original code modified to use std::ranges as suggested by sonarcloud static analyzer
 	//and generic code to support string_view and vector
 	template<typename T>
-	std::string base64_encode(T in) 
+	std::string base64_encode(const T& in) 
 	{
 	  std::string out;
 	  out.reserve(127);
@@ -147,10 +147,14 @@ namespace jwt
 	std::string get_token(const std::string& userlogin, const std::string& mail, const std::string& roles) noexcept
 	{
 		static jwt_config config;
-		time_t now {std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())}; 
-		now += config.duration;
+		const time_t now {std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) + config.duration}; 
 		const std::string json_header {R"({"alg":"HS256","typ":"JWT"})"};
-		const std::string json_payload {R"({"login":")" + userlogin + R"(","mail":")" + mail + R"(","roles":")" + roles + R"(","exp":)" + std::to_string(now) + "}"};
+		
+		std::array<char, 512> buf;
+		std::string fmt {R"({"login":"%s","mail":"%s","roles":"%s","exp":%d})"};
+		std::sprintf(buf.data(), fmt.c_str(), userlogin.c_str(), mail.c_str(), roles.c_str(), now);
+		const std::string json_payload {buf.data()};
+		
 		std::string buffer {base64_encode(json_header) + "." + base64_encode(json_payload)};
 		auto signature {sign(buffer, config.secret)};
 		return buffer.append(".").append(signature);
@@ -165,7 +169,7 @@ namespace jwt
 			return std::make_pair(false, user_info());
 		}
 		auto user {parse_payload(jt.payload)};
-		time_t now {std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())};
+		const time_t now {std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())};
 		if (now < user.exp)
 			return std::make_pair(true, user);
 		else 
