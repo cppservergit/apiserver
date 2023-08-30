@@ -151,8 +151,8 @@ namespace jwt
 		const std::string json_header {R"({"alg":"HS256","typ":"JWT"})"};
 		
 		std::array<char, 512> buf;
-		const std::string fmt {R"({"login":"%s","mail":"%s","roles":"%s","exp":%d})"};
-		std::snprintf(buf.data(), buf.size(), fmt.c_str(), userlogin.c_str(), mail.c_str(), roles.c_str(), now);
+		//const std::string fmt {R"({"login":"%s","mail":"%s","roles":"%s","exp":%d})"};
+		std::snprintf(buf.data(), buf.size(), "{\"login\":\"%s\",\"mail\":\"%s\",\"roles\":\"%s\",\"exp\":%ld}", userlogin.c_str(), mail.c_str(), roles.c_str(), now);
 		const std::string json_payload {buf.data()};
 		
 		std::string buffer {base64_encode(json_header) + "." + base64_encode(json_payload)};
