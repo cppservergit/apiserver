@@ -49,7 +49,8 @@ namespace logger
 	{
 		int i{1};
 		for (const auto& v: values) {
-			std::string item {"$" + std::to_string(i)};
+			std::string item {"$"};
+			item.append(std::to_string(i));
 			if (auto pos {msg.find(item)}; pos != std::string::npos)
 				msg.replace(pos, item.size(), v);
 			++i;
