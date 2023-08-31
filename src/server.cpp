@@ -204,23 +204,23 @@ namespace
 				send_options(req);
 			else 
 				execute_service(req, api); //run lambda
-		} catch (const http::invalid_input_exception& e) { //thrown by request::enforce()
-			error_msg = std::string(e.what());
+		} catch (const http::invalid_input_exception& e) { 
+			error_msg = e.what();
 			req.response.set_body(logger::format(R"({"status": "INVALID", "validation": {"id": "$1", "description": "$2"}})", {e.get_field_name(), e.get_error_description()}));
-		} catch (const http::access_denied_exception& e) { //thrown by request::check_security()
-			error_msg = std::string(e.what());
+		} catch (const http::access_denied_exception& e) { 
+			error_msg = e.what();
 			req.response.set_body(logger::format(R"({"status": "INVALID", "validation": {"id": "$1", "description": "$2"}})", {"_dialog_", "err.accessdenied"}));
-		} catch (const http::login_required_exception& e) { //thrown by request::check_security()
-			error_msg = std::string(e.what());
+		} catch (const http::login_required_exception& e) { 
+			error_msg = e.what();
 			send401(req);
-		} catch (const http::resource_not_found_exception& e) { //may be thrown by lambda service
-			error_msg = std::string(e.what());
+		} catch (const http::resource_not_found_exception& e) { 
+			error_msg = e.what();
 			send404(req);
-		} catch (const http::method_not_allowed_exception& e) { //thrown by request::enforce(verb)
-			error_msg = std::string(e.what());
+		} catch (const http::method_not_allowed_exception& e) { 
+			error_msg = e.what();
 			send405(req);
-		} catch (const std::exception& e) { //thrown by sql:: functions
-			error_msg = std::string(e.what());
+		} catch (const sql::database_exception& e) { 
+			error_msg = e.what();
 			req.response.set_body(R"({"status": "ERROR", "description": "Service error"})");
 		}
 		if (!error_msg.empty())
