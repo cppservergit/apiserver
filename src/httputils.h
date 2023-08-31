@@ -188,7 +188,7 @@ namespace http
 			payload.reserve(8191);
 		}
 
-		request() {}
+		request() = default;
 		
 		void clear();
 		void parse();

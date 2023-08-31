@@ -26,7 +26,22 @@ namespace
 		{ }
 	};
 	
-	std::unordered_map<std::string, webapi> webapi_catalog;
+	//taken from https://www.cppstories.com/2021/heterogeneous-access-cpp20/ 
+	//addresses issues raised by rule cpp:S6045 from SonarCloud static analyzer
+	struct string_hash {
+	  using is_transparent = void;
+	  [[nodiscard]] size_t operator()(const char *txt) const {
+		return std::hash<std::string_view>{}(txt);
+	  }
+	  [[nodiscard]] size_t operator()(std::string_view txt) const {
+		return std::hash<std::string_view>{}(txt);
+	  }
+	  [[nodiscard]] size_t operator()(const std::string &txt) const {
+		return std::hash<std::string>{}(txt);
+	  }
+	};
+	
+	std::unordered_map<std::string, webapi, string_hash, std::equal_to<>> webapi_catalog;
 		
 	std::atomic<size_t> g_counter{0};
 	std::atomic<double> g_total_time{0};
@@ -623,6 +638,26 @@ namespace
 			false /* no security */
 		);
 		
+		auto prometheus_util = [](const std::vector<std::string>& values) -> std::string {
+			std::string str {
+			"# HELP $1 $2.\n"
+			"# TYPE $1 counter\n"
+			"$1{pod=\"$3\"} $4\n"		
+			};
+			int i{1};
+			for (const auto& v: values) {
+				std::string item {"$"};
+				item.append(std::to_string(i));
+				size_t start_pos = 0;
+				while((start_pos = str.find(item, start_pos)) != std::string::npos) {
+					str.replace(start_pos, item.length(), v);
+					start_pos += v.length();
+				}
+				++i;
+			}
+			return str;
+		};
+		
 		server::register_webapi
 		(
 			server::webapi_path("/api/metrics"), 
@@ -630,7 +665,7 @@ namespace
 			http::verb::GET, 
 			{} /* inputs */, 	
 			{} /* roles */,
-			[](http::request& req) 
+			[&prometheus_util](http::request& req) 
 			{
 				std::string body;
 				std::array<char, 128> hostname{0};
@@ -640,23 +675,12 @@ namespace
 				std::array<char, 64> str2{0}; std::to_chars(str2.data(), str2.data() + str2.size(), avg, std::chars_format::fixed, 8);
 				std::array<char, 64> str3{0}; std::to_chars(str3.data(), str3.data() + str3.size(), g_connections);
 				std::array<char, 64> str4{0}; std::to_chars(str4.data(), str4.data() + str4.size(), g_active_threads);
+				std::string pod {hostname.data()};
 
-				body.append("# HELP cpp_requests_total The number of HTTP requests processed by this container.\n");
-				body.append("# TYPE cpp_requests_total counter\n");
-				body.append("cpp_requests_total{pod=\"").append(hostname.data()).append("\"} ").append(str1.data()).append("\n");
-
-				body.append("# HELP cpp_connections Client tcp-ip connections.\n");
-				body.append("# TYPE cpp_connections counter\n");
-				body.append("cpp_connections{pod=\"").append(hostname.data()).append("\"} ").append(str3.data()).append("\n");
-
-				body.append("# HELP cpp_active_threads Active threads.\n");
-				body.append("# TYPE cpp_active_threads counter\n");
-				body.append("cpp_active_threads{pod=\"").append(hostname.data()).append("\"} ").append(str4.data()).append("\n");
-
-				body.append("# HELP cpp_avg_time Average request processing time in milliseconds.\n");
-				body.append("# TYPE cpp_avg_time counter\n");
-				body.append("cpp_avg_time{pod=\"").append(hostname.data()).append("\"} ").append(str2.data()).append("\n");
-
+				body.append(prometheus_util({"cpp_requests_total", 	"The number of HTTP requests processed by this container.", pod, std::string(str1.data())}));
+				body.append(prometheus_util({"cpp_connections", 	"Client tcp-ip connections.", pod, std::string(str3.data())}));
+				body.append(prometheus_util({"cpp_active_threads", 	"Active threads.", pod, std::string(str4.data())}));
+				body.append(prometheus_util({"cpp_avg_time", 		"Average request processing time in milliseconds.", pod, std::string(str2.data())}));
 				req.response.set_body(body, "text/plain; version=0.0.4");
 			},
 			false /* no security */
