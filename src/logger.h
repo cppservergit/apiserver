@@ -18,10 +18,10 @@
 
 namespace logger
 {
-	void log(const std::string& source, const std::string& level, std::string msg, bool add_thread_id = false) noexcept;
-	void log(const std::string& source, const std::string& level, std::string msg, const std::vector<std::string>& fields, bool add_thread_id = false) noexcept;
+	void log(std::string_view source, std::string_view level, std::string msg, bool add_thread_id = false) noexcept;
+	void log(std::string_view source, std::string_view level, std::string msg, const std::vector<std::string>& fields, bool add_thread_id = false) noexcept;
 	std::string format(std::string msg, const std::vector<std::string>& values) noexcept;
-	void set_request_id(const std::string& id) noexcept;
+	void set_request_id(std::string_view id) noexcept;
 	std::string get_request_id() noexcept;
 }
 

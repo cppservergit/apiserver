@@ -7,7 +7,7 @@ namespace
 
 namespace logger 
 {
-	void set_request_id(const std::string& id) noexcept
+	void set_request_id(std::string_view id) noexcept
 	{
 		request_id = id;
 	}
@@ -17,7 +17,7 @@ namespace logger
 		return request_id;
 	}
 	
-	void log(const std::string& source, const std::string& level, std::string msg, bool add_thread_id) noexcept
+	void log(std::string_view source, std::string_view level, std::string msg, bool add_thread_id) noexcept
 	{
 		std::transform( msg.begin(), msg.end(), msg.begin(), 
 			[](unsigned char c)
@@ -45,7 +45,7 @@ namespace logger
 		std::clog << buffer;
 	}
 	
-	void log(const std::string& source, const std::string& level, std::string msg, const std::vector<std::string>& values, bool add_thread_id) noexcept
+	void log(std::string_view source, std::string_view level, std::string msg, const std::vector<std::string>& values, bool add_thread_id) noexcept
 	{
 		int i{1};
 		for (const auto& v: values) {

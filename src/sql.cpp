@@ -2,7 +2,7 @@
 
 namespace 
 {
-	const std::string LOGGER_SRC {"sql"};
+	constexpr const char* LOGGER_SRC {"sql"};
 	constexpr int max_retries{3};
 	constexpr int PG_DATE = 1082;
 	constexpr int PG_TIMESTAMP = 1114;
@@ -79,8 +79,6 @@ namespace
 	  }
 	};
 
-	//thread_local  std::unordered_map<std::string, dbutil> dbconns;
-
 	PGconn* getdb(const std::string& dbname, bool reset = false)
 	{
 		thread_local  std::unordered_map<std::string, dbutil, string_hash, std::equal_to<>> dbconns;
@@ -91,8 +89,7 @@ namespace
 				return iter->second.conn;
 			}
 			else {
-				std::string error{logger::format("getdb() -> invalid dbname: $1", {dbname})};
-				throw std::runtime_error(error);
+				throw sql::database_exception(logger::format("getdb() -> invalid dbname: $1", {dbname}));
 			}
 		} else {
 			if (reset)
@@ -105,15 +102,14 @@ namespace
 	{
 		if ( PQstatus(conn) == CONNECTION_BAD ) {
 			if (retries == max_retries) {
-				std::string error{logger::format("retry() -> cannot connect to database:: $1", {dbname})};
-				throw std::runtime_error(error);
+				throw sql::database_exception(logger::format("retry() -> cannot connect to database:: $1", {dbname}));
 			} else {
 				retries++;
 				getdb(dbname, true);
 			}
 		} else {
 			std::string error {logger::format("db_exec() $1 -> sql: $2", {get_error(conn), sql})};
-			throw std::runtime_error(error);
+			throw sql::database_exception(error);
 		}		
 	}
 

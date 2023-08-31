@@ -20,7 +20,18 @@
 
 namespace sql
 {
-	//void connect(const std::string& dbname, const std::string& conn_info);
+	
+	class database_exception
+	{
+		public:
+			explicit database_exception(std::string_view _msg): m_msg {_msg} {}
+			std::string what() const noexcept {
+				return m_msg;
+			}
+		private:
+            std::string m_msg;
+	};
+	
 	void exec_sql(const std::string& dbname, const std::string& sql);
 	bool has_rows(const std::string& dbname, const std::string &sql);
 	std::unordered_map<std::string, std::string> get_record(const std::string& dbname, const std::string& sql);
