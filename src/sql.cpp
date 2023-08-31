@@ -83,7 +83,7 @@ namespace
 		}
 	}
 
-	void retry(const std::string& dbname, PGconn* conn, int& retries, const std::string& sql)
+	void retry(const std::string& dbname, const PGconn* conn, int& retries, const std::string& sql)
 	{
 		if ( PQstatus(conn) == CONNECTION_BAD ) {
 			if (retries == max_retries) {

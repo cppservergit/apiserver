@@ -32,39 +32,13 @@ namespace
 	std::atomic			g_active_threads{0};
 	std::atomic<size_t> g_connections{0};
 
-	inline void send_options(http::request& req);
-	inline void send400(http::request& req);
-	inline void send401(http::request& req);
-	inline void send404(http::request& req);
-	inline void send405(http::request& req);
-	inline void sendRedirect(http::request& req, const std::string& newPath);
-	
-	void log_request(const http::request& req, double duration) noexcept;
-	void execute_service(http::request& req, const webapi& api);
-	void process_request(http::request& req, const webapi& api) noexcept;
-	void http_server(http::request& req, const webapi& api) noexcept;
-	
-	int get_signalfd() noexcept;
-	int get_listenfd(int port) noexcept;
-	void epoll_add_event(int fd, int epoll_fd, uint32_t event_flags) noexcept;
-	void epoll_handle_close(epoll_event ev) noexcept;
-	void epoll_handle_connect(int listen_fd, int epoll_fd, std::unordered_map<int, http::request>& buffers) noexcept;
-	void epoll_abort_request(http::request& req) noexcept;
-	void run_async_task(http::request& req) noexcept;
-	void epoll_handle_read(epoll_event ev, std::array<char, 8192>& data) noexcept;
-	void epoll_handle_write(epoll_event ev) noexcept;
-	void epoll_handle_IO(epoll_event ev, std::array<char, 8192>& data) noexcept;
-	void start_epoll(int port) noexcept ;
-	void consumer(std::stop_token tok) noexcept;
-	bool read_request(http::request& req, const char* data, int bytes) noexcept;
-	void print_server_info(const std::string& pod_name) noexcept;
-	void prebuilt_services();
-
 	struct worker_params {
 		http::request& req;
 		const webapi& api;
 	};
-	
+
+	int get_signalfd() noexcept;
+
 	std::queue<worker_params> m_queue;
 	std::condition_variable m_cond;
 	std::mutex m_mutex;
@@ -72,14 +46,14 @@ namespace
 
 	inline void send_options(http::request& req)
 	{
-		std::string res = "HTTP/1.1 204 No Content\r\n"
+		std::string res {"HTTP/1.1 204 No Content\r\n"
 		"Date: " + http::get_response_date() + "\r\n"
 		"Access-Control-Allow-Origin: " + req.get_header("origin") + "\r\n"
 		"Access-Control-Allow-Methods: GET, POST\r\n"
 		"Access-Control-Allow-Headers: " + req.get_header("access-control-request-headers") + "\r\n"
 		"Access-Control-Max-Age: 600\r\n"
 		"Vary: Origin\r\n"
-		"\r\n";
+		"\r\n"};
 		req.response << res;
 	}
 
@@ -380,7 +354,7 @@ namespace
 		epoll_ctl(req.epoll_fd, EPOLL_CTL_MOD, req.fd, &event);		
 	}
 
-	void producer(worker_params& wp) noexcept
+	void producer(const worker_params& wp) noexcept
 	{
 		std::scoped_lock lock{m_mutex};
 		m_queue.push(wp);
