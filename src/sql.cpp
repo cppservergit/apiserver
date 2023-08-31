@@ -64,24 +64,9 @@ namespace
 		}
 	};
 
-	//taken from https://www.cppstories.com/2021/heterogeneous-access-cpp20/ 
-	//addresses issues raised by rule cpp:S6045 from SonarCloud static analyzer
-	struct string_hash {
-	  using is_transparent = void;
-	  [[nodiscard]] size_t operator()(const char *txt) const {
-		return std::hash<std::string_view>{}(txt);
-	  }
-	  [[nodiscard]] size_t operator()(std::string_view txt) const {
-		return std::hash<std::string_view>{}(txt);
-	  }
-	  [[nodiscard]] size_t operator()(const std::string &txt) const {
-		return std::hash<std::string>{}(txt);
-	  }
-	};
-
 	PGconn* getdb(const std::string& dbname, bool reset = false)
 	{
-		thread_local  std::unordered_map<std::string, dbutil, string_hash, std::equal_to<>> dbconns;
+		thread_local  std::unordered_map<std::string, dbutil, util::string_hash, std::equal_to<>> dbconns;
 		if (!dbconns.contains(dbname)) {
 			std::string connstr{env::get_str(dbname)};
 			if (!connstr.empty()) {
@@ -154,15 +139,15 @@ namespace sql
 	}	
 	
 	//returns only the first rows of a resultset, use of "limit 1" or "where col=pk" in the query is recommended
-	std::unordered_map<std::string, std::string> get_record(const std::string& dbname, const std::string& sql)
+	std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>> get_record(const std::string& dbname, const std::string& sql)
 	{
-		return db_exec<std::unordered_map<std::string, std::string>>(dbname, sql, [](PGresult *res){
-				std::unordered_map<std::string, std::string> rec;
+		return db_exec<std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>>>(dbname, sql, [](PGresult *res){
+				std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>> rec;
 				int rows {PQntuples(res)};
 				int cols {PQnfields(res)};
 				if (rows) {
 					for(int j=0; j < cols; j++) {
-						rec.emplace(PQfname(res, j), PQgetvalue(res, 0, j));
+						rec.try_emplace(PQfname(res, j), PQgetvalue(res, 0, j));
 					}
 				}
 				PQclear(res);
@@ -182,7 +167,7 @@ namespace sql
 				if (rows) {
 					is_null = PQgetisnull(res, 0, 0);
 					if (!is_null) 
-						json.append("{\"status\":\"OK\", \"data\":").append(PQgetvalue(res, 0, 0)).append("}");
+						json.append(R"({"status":"OK", "data":)").append(PQgetvalue(res, 0, 0)).append("}");
 				}
 				if (!rows || is_null)
 					json.append(R"({"status":"EMPTY"})");

@@ -2,7 +2,7 @@
 
 namespace 
 {
-	const std::string LOGGER_SRC {"login"};
+	constexpr const char* LOGGER_SRC {"login"};
 }
 
 namespace login

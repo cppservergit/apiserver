@@ -2,7 +2,7 @@
 
 namespace 
 {
-	const std::string LOGGER_SRC {"jwt"};
+	constexpr const char* LOGGER_SRC {"jwt"};
 	
 	struct jwt_config {
 		std::string secret;

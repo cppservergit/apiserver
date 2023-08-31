@@ -41,6 +41,7 @@
 #include <charconv>
 #include <functional>
 #include <filesystem>
+#include "util.h"
 #include "env.h"
 #include "logger.h"
 #include "login.h"

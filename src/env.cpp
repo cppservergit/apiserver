@@ -2,7 +2,7 @@
 
 namespace 
 {
-	const std::string LOGGER_SRC {"env"};
+	constexpr const char* LOGGER_SRC {"env"};
 	
 	struct env_vars 
 	{
