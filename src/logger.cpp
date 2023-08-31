@@ -32,12 +32,12 @@ namespace logger
 		
 		std::string buffer{""};
 		buffer.reserve(1023);
-		buffer.append("{\"source\":\"" + source + "\"," + "\"level\":\"" + level + "\",\"msg\":\"" + msg + "\",");
+		buffer.append("{\"source\":\"").append(source).append("\",").append("\"level\":\"").append(level).append("\",\"msg\":\"").append(msg).append("\",");
 		
 		if (add_thread_id) {
-			buffer.append("\"thread\":\"" + std::to_string(pthread_self()) + "\",");
+			buffer.append("\"thread\":\"").append(std::to_string(pthread_self())).append("\",");
 			if (!request_id.empty())
-				buffer.append("\"x-request-id\":\"" + request_id + "\",");
+				buffer.append("\"x-request-id\":\"").append(request_id).append("\",");
 		}
 		
 		buffer.pop_back();
@@ -58,5 +58,17 @@ namespace logger
 		log(source, level, msg, add_thread_id);
 	}
 
+	std::string format(std::string msg, const std::vector<std::string>& values) noexcept
+	{
+		int i{1};
+		for (const auto& v: values) {
+			std::string item {"$"};
+			item.append(std::to_string(i));
+			if (auto pos {msg.find(item)}; pos != std::string::npos)
+				msg.replace(pos, item.size(), v);
+			++i;
+		}
+		return msg;
+	}
 }
 

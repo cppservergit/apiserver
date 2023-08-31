@@ -16,10 +16,11 @@
 #include <vector>
 #include <libpq-fe.h>
 #include "logger.h"
+#include "env.h"
 
 namespace sql
 {
-	void connect(const std::string& dbname, const std::string& conn_info);
+	//void connect(const std::string& dbname, const std::string& conn_info);
 	void exec_sql(const std::string& dbname, const std::string& sql);
 	bool has_rows(const std::string& dbname, const std::string &sql);
 	std::unordered_map<std::string, std::string> get_record(const std::string& dbname, const std::string& sql);

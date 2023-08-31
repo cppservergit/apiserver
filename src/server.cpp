@@ -55,11 +55,8 @@ namespace
 	inline void send405(http::request& req);
 	inline void sendRedirect(http::request& req, const std::string& newPath);
 	
-	void db_connect();
 	void log_request(const http::request& req, double duration) noexcept;
 	void execute_service(http::request& req, const webapi& api);
-	std::string get_invalid_json(std::string_view id, std::string_view description) noexcept;
-	std::string format(std::string msg, const std::vector<std::string>& values) noexcept;
 	void process_request(http::request& req, const webapi& api) noexcept;
 	void http_server(http::request& req, const webapi& api) noexcept;
 	
@@ -188,42 +185,6 @@ namespace
 			<<  "\r\n"
 			<< msg;
 	}
-	
-	void db_connect()
-	{
-		int i{0};
-		while (true)
-		{
-			++i;
-			std::string dbname {"DB" + std::to_string(i)};
-			std::string connstr{env::get_str(dbname)};
-			if (!connstr.empty()) 
-				sql::connect(dbname, connstr);
-			else
-				break;
-		}
-	}
-
-	std::string get_invalid_json(std::string_view id, std::string_view description) noexcept
-	{
-		std::string error {R"({"status": "INVALID", "validation": {"id": "$1", "description": "$2"}})"};
-		error.replace(error.find("$1"), 2, id);
-		error.replace(error.find("$2"), 2, description);
-		return error;
-	}
-
-	std::string format(std::string msg, const std::vector<std::string>& values) noexcept
-	{
-		int i{1};
-		for (const auto& v: values) {
-			std::string item {"$"};
-			item.append(std::to_string(i));
-			if (auto pos {msg.find(item)}; pos != std::string::npos)
-				msg.replace(pos, item.size(), v);
-			++i;
-		}
-		return msg;
-	}
 
 	void execute_service(http::request& req, const webapi& api)
 	{
@@ -245,10 +206,10 @@ namespace
 				execute_service(req, api); //run lambda
 		} catch (const http::invalid_input_exception& e) { //thrown by request::enforce()
 			error_msg = std::string(e.what());
-			req.response.set_body(get_invalid_json(e.get_field_name(), e.get_error_description()));
+			req.response.set_body(logger::format(R"({"status": "INVALID", "validation": {"id": "$1", "description": "$2"}})", {e.get_field_name(), e.get_error_description()}));
 		} catch (const http::access_denied_exception& e) { //thrown by request::check_security()
 			error_msg = std::string(e.what());
-			req.response.set_body(get_invalid_json("_dialog_", "err.accessdenied"));
+			req.response.set_body(logger::format(R"({"status": "INVALID", "validation": {"id": "$1", "description": "$2"}})", {"_dialog_", "err.accessdenied"}));
 		} catch (const http::login_required_exception& e) { //thrown by request::check_security()
 			error_msg = std::string(e.what());
 			send401(req);
@@ -269,13 +230,7 @@ namespace
 	void log_request(const http::request& req, double duration) noexcept
 	{
 		std::string msg {"fd=$1 remote-ip=$2 $3 path=$4 elapsed-time=$5 user=$6"};
-		msg.replace(msg.find("$1"), 2, std::to_string(req.fd));
-		msg.replace(msg.find("$2"), 2, req.remote_ip);
-		msg.replace(msg.find("$3"), 2, req.method);
-		msg.replace(msg.find("$4"), 2, req.path);
-		msg.replace(msg.find("$5"), 2, std::to_string(duration));
-		msg.replace(msg.find("$6"), 2, req.user_info.login);
-		logger::log("access-log", "info", msg, true);
+		logger::log("access-log", "info", msg, {std::to_string(req.fd), req.remote_ip, req.method, req.path, std::to_string(duration), req.user_info.login}, true);
 	}
 
 	void http_server(http::request& req, const webapi& api) noexcept
@@ -353,7 +308,6 @@ namespace
 	void consumer(std::stop_token tok) noexcept 
 	{
 		logger::log("pool", "info", "starting worker thread", true);
-		db_connect(); //establish database connection for this thread
 		
 		while(!tok.stop_requested())
 		{
@@ -638,7 +592,7 @@ namespace
 			false /* no security */
 		);
 		
-		auto prometheus_util = [](const std::vector<std::string>& values) -> std::string {
+		auto prometheus_util = [](const std::vector<std::string>& values) {
 			std::string str {
 			"# HELP $1 $2.\n"
 			"# TYPE $1 counter\n"
@@ -702,7 +656,7 @@ namespace
 				std::string password{req.get_param("password")};
 				if (auto lr {login::bind(login, password)}; lr.ok()) {
 					const std::string token {jwt::get_token(login, lr.get_email(), lr.get_roles())};
-					const std::string login_ok {format(R"({"status":"OK","data":[{"displayname":"$1","token_type":"bearer","id_token":"$2"}]})", {lr.get_display_name(), token})};
+					const std::string login_ok {logger::format(R"({"status":"OK","data":[{"displayname":"$1","token_type":"bearer","id_token":"$2"}]})", {lr.get_display_name(), token})};
 					req.response.set_body(login_ok);
 					if (env::login_log_enabled())
 						logger::log("security", "info", "login OK - user: $1 IP: $2 token: $3 roles: $4", {login, req.remote_ip, token, lr.get_roles()}, true);

@@ -3,17 +3,6 @@
 namespace 
 {
 	const std::string LOGGER_SRC {"login"};
-	struct dbutil 
-	{
-		dbutil(const dbutil&) = delete;
-		dbutil(dbutil&&) = delete;
-		dbutil& operator=(const dbutil&) = delete;	
-		dbutil& operator=(dbutil&&) = delete;
-		dbutil()
-		{
-			sql::connect("LOGINDB", env::get_str("CPP_LOGINDB"));
-		}
-	};
 }
 
 namespace login
@@ -37,14 +26,13 @@ namespace login
 	std::string login_result::get_roles() const noexcept {
 		return roles;
 	}
-		
+	
 	//login and password must be pre-processed for sql-injection protection
 	//expects a resultset with these columns: mail, displayname, rolenames
 	login_result bind(const std::string& login, const std::string& password)
 	{
-		thread_local dbutil db;
 		std::string sql {"select * from cpp_dblogin('" + login + "', '" + password + "')"};
-		if (auto rec {sql::get_record("LOGINDB", sql)}; rec.size()) {
+		if (auto rec {sql::get_record("CPP_LOGINDB", sql)}; rec.size()) {
 			return login_result {true, rec["displayname"], rec["email"], rec["rolenames"]};
 		} else
 			return login_result{false, "", "", ""};

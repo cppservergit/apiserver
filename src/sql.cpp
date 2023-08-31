@@ -33,7 +33,7 @@ namespace
 		{
 			conn = PQconnectdb(m_dbconnstr.c_str());
 			if (PQstatus(conn) != CONNECTION_OK)
-				logger::log(LOGGER_SRC, "error", "dbutil() -> " + get_error(conn), true);
+				logger::log(LOGGER_SRC, "error", "dbutil() -> $1", {get_error(conn)}, true);
 		}
 		
 		dbutil(dbutil &&source) noexcept: m_dbconnstr{source.m_dbconnstr}, conn{source.conn}
@@ -53,41 +53,66 @@ namespace
 		inline void reset_connection() noexcept
 		{
 			if ( PQstatus(conn) == CONNECTION_BAD ) {
-				logger::log(LOGGER_SRC, "warn", "reset_connection() -> connection to database " + std::string(PQdb(conn)) + " no longer valid, reconnecting... ", true);
+				logger::log(LOGGER_SRC, "warn", "reset_connection() -> connection to database $1 no longer valid, reconnecting... ", {std::string(PQdb(conn))}, true);
 				PQfinish(conn);
 				conn = PQconnectdb(m_dbconnstr.c_str());
 				if (PQstatus(conn) != CONNECTION_OK)
-					logger::log(LOGGER_SRC, "error", "reset_connection() -> error reconnecting to database " + std::string(PQdb(conn)) + " - " + get_error(conn), true);
+					logger::log(LOGGER_SRC, "error", "reset_connection() -> error reconnecting to database $1: $2", {std::string(PQdb(conn)), get_error(conn)}, true);
 				else
-					logger::log(LOGGER_SRC, "info", "reset_connection() -> connection to database " +  std::string(PQdb(conn)) + " restored", true);
+					logger::log(LOGGER_SRC, "info", "reset_connection() -> connection to database $1 restored", {std::string(PQdb(conn))}, true);
 			}
 		}
-	
 	};
 
-	thread_local  std::unordered_map<std::string, dbutil> dbconns;
+	//taken from https://www.cppstories.com/2021/heterogeneous-access-cpp20/ 
+	//addresses issues raised by rule cpp:S6045 from SonarCloud static analyzer
+	struct string_hash {
+	  using is_transparent = void;
+	  [[nodiscard]] size_t operator()(const char *txt) const {
+		return std::hash<std::string_view>{}(txt);
+	  }
+	  [[nodiscard]] size_t operator()(std::string_view txt) const {
+		return std::hash<std::string_view>{}(txt);
+	  }
+	  [[nodiscard]] size_t operator()(const std::string &txt) const {
+		return std::hash<std::string>{}(txt);
+	  }
+	};
 
-	PGconn* getdb(const std::string& dbname)
+	//thread_local  std::unordered_map<std::string, dbutil> dbconns;
+
+	PGconn* getdb(const std::string& dbname, bool reset = false)
 	{
+		thread_local  std::unordered_map<std::string, dbutil, string_hash, std::equal_to<>> dbconns;
 		if (!dbconns.contains(dbname)) {
-			std::string error{"getdb() -> invalid dbname: " + dbname};
-			throw std::runtime_error(error.c_str());
+			std::string connstr{env::get_str(dbname)};
+			if (!connstr.empty()) {
+				auto [iter, success] = dbconns.try_emplace(dbname, connstr);
+				return iter->second.conn;
+			}
+			else {
+				std::string error{logger::format("getdb() -> invalid dbname: $1", {dbname})};
+				throw std::runtime_error(error);
+			}
+		} else {
+			if (reset)
+				dbconns[dbname].reset_connection();
+			return dbconns[dbname].conn;
 		}
-		return dbconns[dbname].conn;
 	}
 
 	void retry(const std::string& dbname, PGconn* conn, int& retries, const std::string& sql)
 	{
 		if ( PQstatus(conn) == CONNECTION_BAD ) {
 			if (retries == max_retries) {
-				std::string error_message{"cannot connect to database: " + dbname};
-				throw std::runtime_error(error_message);
+				std::string error{logger::format("retry() -> cannot connect to database:: $1", {dbname})};
+				throw std::runtime_error(error);
 			} else {
 				retries++;
-				dbconns[dbname].reset_connection();
+				getdb(dbname, true);
 			}
 		} else {
-			std::string error {get_error(conn) + " sql: " + sql};
+			std::string error {logger::format("db_exec() $1 -> sql: $2", {get_error(conn), sql})};
 			throw std::runtime_error(error);
 		}		
 	}
@@ -111,17 +136,6 @@ namespace
 
 namespace sql 
 {
-	void connect(const std::string& dbname, const std::string& conn_info)
-	{
-		if (!dbconns.contains(dbname)) { 
-			dbconns.insert({dbname, dbutil(conn_info)});
-		}
-		else {
-			std::string error{"connect() -> duplicated dbname: " + dbname};
-			throw std::runtime_error(error.c_str());
-		}
-	}
-
 	//executes a query that doesn't return rows (data modification query)
 	void exec_sql(const std::string& dbname, const std::string& sql)
 	{
@@ -168,17 +182,16 @@ namespace sql
 		return db_exec<std::string>(dbname, sql, [](PGresult *res){
 				std::string json;
 				int rows {PQntuples(res)};
-				bool is_null {0};
+				bool is_null {false};
 				if (rows) {
 					is_null = PQgetisnull(res, 0, 0);
 					if (!is_null) 
 						json.append("{\"status\":\"OK\", \"data\":").append(PQgetvalue(res, 0, 0)).append("}");
 				}
 				if (!rows || is_null)
-					json.append("{\"status\":\"EMPTY\"}");
+					json.append(R"({"status":"EMPTY"})");
 				PQclear(res);
 				return json;
 		});
 	}
-	
 }
