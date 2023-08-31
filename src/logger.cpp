@@ -19,7 +19,7 @@ namespace logger
 	
 	void log(std::string_view source, std::string_view level, std::string msg, bool add_thread_id) noexcept
 	{
-		std::transform( msg.begin(), msg.end(), msg.begin(), 
+		std::ranges::transform(msg, msg.begin(), 
 			[](unsigned char c)
 			{
 				if (c == '\n') c = ' ';
@@ -32,12 +32,12 @@ namespace logger
 		
 		std::string buffer{""};
 		buffer.reserve(1023);
-		buffer.append("{\"source\":\"").append(source).append("\",").append("\"level\":\"").append(level).append("\",\"msg\":\"").append(msg).append("\",");
+		buffer.append(R"({"source":")").append(source).append(R"(",)").append(R"("level":")").append(level).append(R"(","msg":")").append(msg).append(R"(",)");
 		
 		if (add_thread_id) {
-			buffer.append("\"thread\":\"").append(std::to_string(pthread_self())).append("\",");
+			buffer.append(R"("thread":")").append(std::to_string(pthread_self())).append(R"(",)");
 			if (!request_id.empty())
-				buffer.append("\"x-request-id\":\"").append(request_id).append("\",");
+				buffer.append(R"("x-request-id":")").append(request_id).append(R"(",)");
 		}
 		
 		buffer.pop_back();

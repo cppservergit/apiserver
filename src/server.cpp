@@ -380,16 +380,19 @@ namespace
 		epoll_ctl(req.epoll_fd, EPOLL_CTL_MOD, req.fd, &event);		
 	}
 
+	void producer(worker_params& wp) noexcept
+	{
+		std::scoped_lock lock{m_mutex};
+		m_queue.push(wp);
+		m_cond.notify_all();
+	}
+
 	void run_async_task(http::request& req) noexcept
 	{
 		if (auto obj = webapi_catalog.find(req.path); obj != webapi_catalog.end()) 
 		{
 			worker_params wp {req, obj->second};
-			{
-				std::scoped_lock lock {m_mutex};
-				m_queue.push(wp);
-			}
-			m_cond.notify_all();
+			producer(wp);
 		}
 		else 
 			epoll_abort_request(req);
@@ -525,7 +528,7 @@ namespace
 			{} /* roles */,
 			[](http::request& req) 
 			{
-				req.response.set_body( "{\"status\": \"OK\"}" );
+				req.response.set_body( R"({"status": "OK"})" );
 			},
 			false /* no security */
 		);
@@ -542,8 +545,8 @@ namespace
 				std::string json;
 				std::array<char, 128> hostname{0};
 				gethostname(hostname.data(), hostname.size());
-				json.append("{\"status\": \"OK\", \"data\":[{\"pod\": \"").append(hostname.data()).append("\", ");
-				json.append("\"server\": \"").append(SERVER_VERSION).append("-").append(std::to_string(CPP_BUILD_DATE)).append("\"}]}");
+				json.append(R"({"status": "OK", "data":[{"pod": ")").append(hostname.data()).append(R"(", )");
+				json.append(R"("server": ")").append(SERVER_VERSION).append("-").append(std::to_string(CPP_BUILD_DATE)).append(R"("}]})");
 				req.response.set_body(json);
 			},
 			false /* no security */
@@ -558,7 +561,6 @@ namespace
 			{} /* roles */,
 			[](http::request& req) 
 			{
-				std::string json;
 				std::array<char, 128> hostname{0};
 				gethostname(hostname.data(), hostname.size());
 				const double avg{ ( g_counter > 0 ) ? g_total_time / g_counter : 0 };
@@ -566,11 +568,12 @@ namespace
 				std::array<char, 64> str2{0}; std::to_chars(str2.data(), str2.data() + str2.size(), avg, std::chars_format::fixed, 8);
 				std::array<char, 64> str3{0}; std::to_chars(str3.data(), str3.data() + str3.size(), g_connections);
 				std::array<char, 64> str4{0}; std::to_chars(str4.data(), str4.data() + str4.size(), g_active_threads);
-				json.append("{\"status\": \"OK\", \"data\":[{\"pod\":\"").append(hostname.data()).append("\",");
-				json.append("\"totalRequests\":").append(str1.data()).append(",");
-				json.append("\"avgTimePerRequest\":").append(str2.data()).append(",");
-				json.append("\"connections\":").append(str3.data()).append(",");
-				json.append("\"activeThreads\":").append(str4.data()).append("}]}");
+				std::string json {
+					logger::format(
+						R"({"status": "OK", "data":[{"pod":"$1","totalRequests":$2,"avgTimePerRequest":$3,"connections":$4,"activeThreads":$5}]})",
+						{std::string(hostname.data()), std::string(str1.data()), std::string(str2.data()), std::string(str3.data()), std::string(str4.data())}
+					)
+				};
 				req.response.set_body(json);
 			},
 			false /* no security */
@@ -614,7 +617,7 @@ namespace
 				std::array<char, 64> str3{0}; std::to_chars(str3.data(), str3.data() + str3.size(), g_connections);
 				std::array<char, 64> str4{0}; std::to_chars(str4.data(), str4.data() + str4.size(), g_active_threads);
 				std::string pod {hostname.data()};
-
+				body.reserve(1027);
 				body.append(prometheus_util({"cpp_requests_total", 	"The number of HTTP requests processed by this container.", pod, std::string(str1.data())}));
 				body.append(prometheus_util({"cpp_connections", 	"Client tcp-ip connections.", pod, std::string(str3.data())}));
 				body.append(prometheus_util({"cpp_active_threads", 	"Active threads.", pod, std::string(str4.data())}));

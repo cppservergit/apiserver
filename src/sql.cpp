@@ -10,7 +10,7 @@ namespace
 	constexpr int PG_TEXT = 25;	
 
 	//get a clean error message suitable for JSON logs
-	inline std::string get_error(PGconn* conn)
+	inline std::string get_error(const PGconn* conn)
 	{
 		std::string msg {PQerrorMessage(conn)};
 		if (auto pos = msg.find("\n"); pos != std::string::npos)

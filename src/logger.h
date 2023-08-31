@@ -11,10 +11,10 @@
 #define LOGGER_H_
 
 #include <string>
-#include <algorithm>
 #include <thread>
 #include <iostream>
 #include <vector>
+#include <algorithm>
 
 namespace logger
 {
