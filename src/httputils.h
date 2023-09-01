@@ -142,7 +142,7 @@ namespace http
 		response_stream& operator <<(std::string_view data);
 		response_stream& operator <<(const char* data);
 		response_stream& operator <<(size_t data);
-		void set_body(const std::string& body, const std::string& content_type = "application/json", int max_age = 0);
+		void set_body(std::string_view body, std::string_view content_type = "application/json", int max_age = 0);
 		void set_content_disposition(std::string_view disposition);
 		void set_origin(std::string_view origin);
 		std::string_view view() const noexcept;
@@ -223,6 +223,7 @@ namespace http
 		void check_security(const std::vector<std::string>& roles = {});
 		std::string get_mail_body(const std::string& template_file);
 		std::string replace_params(const std::string& template_msg);
+		
 	  private:
 		void test_field(const http::input_rule& r, std::string& value);
 		std::string lowercase(std::string_view s) noexcept;	
@@ -239,6 +240,7 @@ namespace http
 		bool add_header(const std::string& header, const std::string& value);
 		bool parse_uri(line_reader& lr);
 		void set_parse_error(std::string_view msg);
+		bool validate_header(const std::string& header, const std::string& value);
 	};	
 }
 

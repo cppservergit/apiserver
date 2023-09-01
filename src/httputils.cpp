@@ -137,7 +137,7 @@ namespace http
 		_buffer.reserve(16383);
 	}
 
-	void response_stream::set_body(const std::string& body, const std::string& content_type, int max_age)
+	void response_stream::set_body(std::string_view body, std::string_view content_type, int max_age)
 	{
 		_buffer.append("HTTP/1.1 200 OK").append("\r\n");
 		_buffer.append("Content-Length: ").append(std::to_string(body.size())).append("\r\n");
@@ -149,9 +149,9 @@ namespace http
 		_buffer.append("Strict-Transport-Security: max-age=31536000; includeSubDomains; preload;\r\n");
 		_buffer.append("X-Frame-Options: SAMEORIGIN\r\n");
 		if (max_age)
-			_buffer.append("Cache-Control: max-age=" + std::to_string(max_age) + "\r\n");
+			_buffer.append("Cache-Control: max-age=").append(std::to_string(max_age)).append("\r\n");
 		if (!_content_disposition.empty())
-			_buffer.append("Content-Disposition: " + _content_disposition + "\r\n");
+			_buffer.append("Content-Disposition: ").append(_content_disposition).append("\r\n");
 		_buffer.append("\r\n").append(body);
 	}
 	
@@ -230,7 +230,7 @@ namespace http
 					return false;
 			}
 			if (count <= 0 && errno != EAGAIN) {
-				logger::log("epoll", "error", "send() error: " + std::string(strerror(errno)) + " FD: " + std::to_string(fd));
+				logger::log("epoll", "error", "send() error: $1 FD: $2", {std::string(strerror(errno)), std::to_string(fd)});
 				return true;
 			}
 		}
@@ -362,10 +362,10 @@ namespace http
 		try {
 			contentLength = std::stoul(value);
 		} catch (const std::invalid_argument& e) {
-			set_parse_error(logger::format("Bad request -> invalid content length header: $1", {value}));
+			set_parse_error(logger::format("Bad request -> invalid content length header: $1 value: $1", {e.what(), value.c_str()}));
 			return false;			
 		} catch (const std::out_of_range& e) {
-			set_parse_error(logger::format("Bad request -> invalid content length header - out of range value: $1", {value}));
+			set_parse_error(logger::format("Bad request -> invalid content length header - $1 value: $2", {e.what(), value.c_str()}));
 			return false;			
 		}
 		return true;
@@ -381,6 +381,7 @@ namespace http
 	
 	bool request::parse_read_boundary(std::string_view value) 
 	{
+		isMultipart = false;
 		if (value.contains("=")) {
 			isMultipart = true;
 			boundary = value.substr(value.find("=") + 1);
@@ -390,6 +391,26 @@ namespace http
 			return false;
 		}
 	}
+	
+	bool request::validate_header(const std::string& header, const std::string& value)
+	{
+		if (header == "content-length" && !set_content_length(value)) 
+			return false;
+					
+		if (header == "content-type" && value.starts_with("multipart") && !parse_read_boundary(value)) 
+			return false;
+					
+		if (header == "authorization" && value.starts_with("Bearer"))
+			token = value.substr(value.find(" ") + 1);
+
+		if (header == "x-forwarded-for")
+			remote_ip = value;					
+
+		if (header == "origin") 
+			origin = value.empty() ? "null":  value;
+	
+		return true;
+	}	
 	
 	bool request::parse_headers(line_reader& lr)
 	{
@@ -405,23 +426,9 @@ namespace http
 			auto [header, value] {split_header_line(line)};
 			if (!add_header(header, value))
 				return false;
-			
-			if (header == "content-length") 
-				if (!set_content_length(value))
-					return false;
-						
-			if (header == "content-type" && value.starts_with("multipart")) 
-				if (!parse_read_boundary(value))
-					return false;
-						
-			if (header == "authorization" && value.starts_with("Bearer"))
-				token = value.substr(value.find(" ") + 1);
-
-			if (header == "x-forwarded-for")
-				remote_ip = value;					
-
-			if (header == "origin") 
-				origin = value.empty() ? "null":  value;
+	
+			if (!validate_header(header, value))
+				return false;
 		}
 		return true;
 	}
@@ -443,11 +450,18 @@ namespace http
 		if (!parse_headers(lr))
 			return;
 
-		if (method=="GET")
-			parse_query_string(queryString);
-		
-		if (contentLength <= 0 && method == "POST") 
+		if (contentLength <= 0 && method == "POST") {
 			set_parse_error(logger::format("Bad request -> invalid content length: $1", {std::to_string(contentLength)}));
+			return;
+		}
+
+		if (method=="POST" && (!isMultipart || contentLength <= 0)) {
+			set_parse_error("Bad request -> POST supported for multipart/form-data only with a valid content-length header");
+			return;
+		}
+
+		if (method=="GET" && !queryString.empty() && queryString.contains("?"))
+			parse_query_string(queryString);
 		
 		response.set_origin(origin);
 	}
@@ -541,17 +555,11 @@ namespace http
 
 	void request::parse_query_string(std::string_view qs) noexcept 
 	{
-		if(qs.empty())
-			return;
-
-		if (auto pos = qs.find("?"); pos == std::string::npos)
-			return;
-		else {
-			std::string_view query_string = qs.substr(pos + 1);
-			constexpr std::string_view delim{"&"};
-			for (const auto& word : std::views::split(query_string, delim)) {
-				parse_param(std::string_view{word});
-			}
+		auto pos {qs.find("?")};
+		std::string_view query_string = qs.substr(pos + 1);
+		constexpr std::string_view delim{"&"};
+		for (const auto& word : std::views::split(query_string, delim)) {
+			parse_param(std::string_view{word});
 		}
 	}
 	
