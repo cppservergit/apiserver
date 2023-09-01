@@ -147,7 +147,7 @@ namespace
 	void execute_service(http::request& req, const webapi& api)
 	{
 		req.enforce(api.verb);
-		if (api.rules.size())
+		if (!api.rules.empty())
 			req.enforce(api.rules);
 		if (api.is_secure)
 			req.check_security(api.roles);
@@ -217,7 +217,7 @@ namespace
 
 	inline bool read_request(http::request& req, const char* data, int bytes) noexcept
 	{
-		bool first_packet { (req.payload.size() > 0) ? false : true };
+		bool first_packet { (req.payload.empty()) ? true : false };
 		req.payload.append(data, bytes);
 		if (first_packet) {
 			req.parse();

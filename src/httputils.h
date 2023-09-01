@@ -27,6 +27,7 @@
 #include <functional>
 #include <ranges>
 #include <sys/socket.h>
+#include "util.h"
 #include "logger.h"
 #include "jwt.h"
 
@@ -157,6 +158,19 @@ namespace http
 		std::string _content_disposition{""};
 		std::string _origin{""};
 	};
+		
+	struct line_reader {
+	  public:
+		explicit line_reader(std::string_view str);
+		bool eof() const noexcept;
+		std::string_view getline();
+		
+	  private:
+		bool _eof{false};
+		std::string_view buffer;
+		int pos{0};
+		const std::string line_sep{"\r\n"};
+	};	
 	
 	struct request {
 	  public:
@@ -175,8 +189,8 @@ namespace http
 		std::string errmsg;
 		std::string origin{"null"};
 		std::string payload;
-		std::unordered_map<std::string, std::string> headers;
-		std::unordered_map<std::string, std::string> params;
+		std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>> headers;
+		std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>> params;
 		std::vector<input_rule> input_rules;
 		jwt::user_info user_info;
 		response_stream response;
@@ -211,13 +225,20 @@ namespace http
 		std::string replace_params(const std::string& template_msg);
 	  private:
 		void test_field(const http::input_rule& r, std::string& value);
-		std::string lowercase(std::string s) noexcept;	
+		std::string lowercase(std::string_view s) noexcept;	
 		std::string decode_param(std::string_view value) const noexcept;
 		void parse_param(std::string_view param) noexcept; 
 		void parse_query_string(std::string_view qs) noexcept;	
 		std::string get_part_content_type(std::string value);
 		std::pair<std::string, std::string> get_part_field(std::string value);
 		std::vector<form_field> parse_multipart();
+		bool parse_headers(line_reader& lr);
+		bool parse_read_boundary(std::string_view value);
+		std::pair<std::string, std::string> split_header_line(std::string_view line);
+		bool set_content_length(const std::string& value);
+		bool add_header(const std::string& header, const std::string& value);
+		bool parse_uri(line_reader& lr);
+		void set_parse_error(std::string_view msg);
 	};	
 }
 

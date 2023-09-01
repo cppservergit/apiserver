@@ -113,27 +113,20 @@ namespace http
 		return std::string(buf.data());		
 	}
 
-	struct line_reader {
-	  public:
-		explicit line_reader(std::string_view str) : buffer{str} { }
-		bool eof() const noexcept { return _eof; }
-		std::string_view getline() {
-			if (auto newpos = buffer.find(line_sep, pos); newpos != std::string::npos && newpos!= 0) {
-				std::string_view line { buffer.substr( pos, newpos - pos ) };
-				pos = newpos + line_sep.size();
-				return line;
-			} else {
-				_eof = true;
-				return "";
-			}
+	line_reader::line_reader(std::string_view str) : buffer{str} { }
+	
+	bool line_reader::eof() const noexcept { return _eof; }
+	
+	std::string_view line_reader::getline() {
+		if (auto newpos = buffer.find(line_sep, pos); newpos != std::string::npos && newpos!= 0) {
+			std::string_view line { buffer.substr( pos, newpos - pos ) };
+			pos = newpos + line_sep.size();
+			return line;
+		} else {
+			_eof = true;
+			return "";
 		}
-		
-	  private:
-		bool _eof{false};
-		std::string_view buffer;
-		int pos{0};
-		const std::string line_sep{"\r\n"};
-	};
+	}
 
 	response_stream::response_stream(int size) noexcept 
 	{
@@ -315,6 +308,123 @@ namespace http
 				test_field(r, value);
 		}
 	}
+
+	void request::set_parse_error(std::string_view msg)
+	{
+		errcode = -1;
+		errmsg  = msg;
+	}
+
+	bool request::parse_uri(line_reader& lr)
+	{
+		size_t nextpos{0};
+		std::string_view line = lr.getline();
+		if (auto newpos = line.find(" ", 0); newpos != std::string::npos) {
+			method = line.substr( 0, newpos );
+			nextpos = newpos;
+		} else {
+			set_parse_error(logger::format("Bad request -> 1st line lacks http method: $1", {line}));
+			return false;
+		}
+
+		if (method != "GET" && method != "POST" && method != "OPTIONS") {
+			set_parse_error(logger::format("Bad request -> only GET-POST-OPTIONS are supported: $1", {method}));
+			return false;
+		}
+
+		if (auto newpos = line.find("/", nextpos); newpos != std::string::npos) {
+			queryString = line.substr( newpos,  line.find(" ", newpos) - newpos );
+		} else {
+			set_parse_error(logger::format("Bad request -> 1st line lacks URI path: : $1", {line}));
+			return false;
+		}
+
+		if (auto newpos = queryString.find("?", 0); newpos != std::string::npos) {
+			path = queryString.substr( 0,  newpos );
+		} else {
+			path = queryString;
+		}
+		return true;
+	}
+	
+	bool request::add_header(const std::string& header, const std::string& value)
+	{
+		auto [iter, success] {headers.try_emplace(header, value)};
+		if (!success) {
+			set_parse_error(logger::format("Bad request -> duplicated header $1", {header}));
+			return false;
+		}
+		return true;
+	}
+	
+	bool request::set_content_length(const std::string& value)
+	{
+		try {
+			contentLength = std::stoul(value);
+		} catch (const std::invalid_argument& e) {
+			set_parse_error(logger::format("Bad request -> invalid content length header: $1", {value}));
+			return false;			
+		} catch (const std::out_of_range& e) {
+			set_parse_error(logger::format("Bad request -> invalid content length header - out of range value: $1", {value}));
+			return false;			
+		}
+		return true;
+	}
+	
+	std::pair<std::string, std::string> request::split_header_line(std::string_view line)
+	{
+		auto newpos = line.find(":", 0); 
+		std::string header_name {lowercase(line.substr( 0,  newpos))};
+		std::string header_value {line.substr(newpos + 2,  line.size() - newpos + 2)};
+		return std::make_pair(header_name, header_value);
+	}
+	
+	bool request::parse_read_boundary(std::string_view value) 
+	{
+		if (value.contains("=")) {
+			isMultipart = true;
+			boundary = value.substr(value.find("=") + 1);
+			return true;
+		} else {
+			set_parse_error("Bad request -> invalid multipart value, cannot read boundary");
+			return false;
+		}
+	}
+	
+	bool request::parse_headers(line_reader& lr)
+	{
+		while (!lr.eof()) {
+			std::string_view line {lr.getline()};
+			if (line.size()==0) break;
+			
+			if (!line.contains(": ")) {
+				set_parse_error("Bad request -> invalid header format, header lacks ':'");
+				return false;
+			}
+			
+			auto [header, value] {split_header_line(line)};
+			if (!add_header(header, value))
+				return false;
+			
+			if (header == "content-length") 
+				if (!set_content_length(value))
+					return false;
+						
+			if (header == "content-type" && value.starts_with("multipart")) 
+				if (!parse_read_boundary(value))
+					return false;
+						
+			if (header == "authorization" && value.starts_with("Bearer"))
+				token = value.substr(value.find(" ") + 1);
+
+			if (header == "x-forwarded-for")
+				remote_ip = value;					
+
+			if (header == "origin") 
+				origin = value.empty() ? "null":  value;
+		}
+		return true;
+	}
 	
 	void request::parse() 
 	{
@@ -323,91 +433,22 @@ namespace http
 		line_reader lr(str.substr(0, bodyStartPos));
 	
 		if (bodyStartPos <= 4) {
-			errcode = -1; 
-			errmsg.append("Bad request format");
+			set_parse_error("Bad request -> no proper HTTP request found");
 			return;
 		}
 	
-		size_t nextpos{0};
-		std::string_view line = lr.getline();
-		if (auto newpos = line.find(" ", 0); newpos != std::string::npos) {
-			method = line.substr( 0, newpos );
-			nextpos = newpos;
-		} else {
-			errcode = -1; 
-			errmsg.append("Bad request -> 1st line lacks http method: ").append(line);
+		if (!parse_uri(lr))
 			return;
-		}
 
-		if (method != "GET" && method != "POST" && method != "OPTIONS") {
-			errcode = -1; 
-			errmsg.append("Bad request -> only GET-POST-OPTIONS are supported: ").append(method);
+		if (!parse_headers(lr))
 			return;
-		}
 
-		if (auto newpos = line.find("/", nextpos); newpos != std::string::npos) {
-			queryString = line.substr( newpos,  line.find(" ", newpos) - newpos );
-		} else {
-			errcode = -1; 
-			errmsg.append("Bad request -> 1st line lacks '/': ").append(line);
-			return;
-		}
-
-		if (auto newpos = queryString.find("?", 0); newpos != std::string::npos) {
-			path = queryString.substr( 0,  newpos );
-		} else {
-			path = queryString;
-		}
-
-		try {
-			while (!lr.eof()) {
-				std::string_view line = lr.getline();
-				if (line.size()==0) break;
-				if (auto newpos = line.find(":", 0); newpos != std::string::npos) {
-					auto h = headers.emplace(lowercase( std::string(line.substr( 0,  newpos)) ), line.substr( newpos + 2,  line.size() - newpos + 2));
-					if (!h.second) {
-						errcode = -1; 
-						errmsg = "Bad request -> duplicated header in request: " + h.first->first + " " + path;
-					}
-					if (h.first->first == "content-length")
-						contentLength = std::stoul(h.first->second);
-					else if (h.first->first == "content-type") {
-						if ( h.first->second.starts_with("multipart") ) {
-							isMultipart = true;
-							boundary = h.first->second.substr( h.first->second.find("=") + 1 );
-						}
-					}
-					else if (h.first->first == "authorization")
-					{
-						if ( h.first->second.starts_with("Bearer") ) {
-							token = h.first->second.substr( h.first->second.find(" ") + 1 );
-						}						
-					}
-					else if (h.first->first == "x-forwarded-for")
-					{
-						remote_ip = h.first->second;					
-					}
-					else if (h.first->first == "origin") {
-						origin = h.first->second;
-						origin = origin.empty() ? "null":  origin;
-					}
-				} else {
-					errcode = -1; 
-					errmsg = "Bad request -> header lacks ':'";
-					return;
-				}
-			}
-		} catch (const std::exception& e) {
-			errcode = -1; errmsg = "Bad request -> runtime exception while parsing the headers: " + std::string(e.what());
-			return;
-		}
 		if (method=="GET")
 			parse_query_string(queryString);
 		
-		if (contentLength <= 0 && method == "POST") {
-			errcode = -1; 
-			errmsg = "Bad request -> invalid content length: " + std::to_string(contentLength);
-		}
+		if (contentLength <= 0 && method == "POST") 
+			set_parse_error(logger::format("Bad request -> invalid content length: $1", {std::to_string(contentLength)}));
+		
 		response.set_origin(origin);
 	}
 	
@@ -458,11 +499,12 @@ namespace http
 			return "";
 	}
 
-	std::string request::lowercase(std::string s) noexcept 
+	std::string request::lowercase(std::string_view sv) noexcept 
 	{
-		std::transform( s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::tolower(c); } );
+		std::string s {sv};
+		std::ranges::transform( s, s.begin(), [](unsigned char c){ return std::tolower(c); } );
 		return s;
-	}	
+	}
 
 	//using code taken from: https://gitlab.com/eidheim/Simple-Web-Server
 	std::string request::decode_param(std::string_view value) const noexcept 
@@ -610,7 +652,7 @@ namespace http
 
 	std::string request::get_sql(std::string sql)
 	{
-		if (input_rules.size() == 0)
+		if (input_rules.empty())
 			return sql;
 		if (std::size_t pos = sql.find("$userlogin"); pos != std::string::npos)
 			sql.replace(pos, std::string("$userlogin").length(), "'" + user_info.login + "'");
@@ -646,7 +688,7 @@ namespace http
 		else
 			user_info = user;
 		
-		if (roles.size()) {
+		if (!roles.empty()) {
 			if (user_info.roles.empty())
 				throw access_denied_exception(user_info.login, remote_ip, "User has no roles");
 			for (const auto& r: roles)
@@ -670,7 +712,7 @@ namespace http
 		std::string body {buffer.str()};
 		if (std::size_t pos = body.find("$userlogin"); pos != std::string::npos)
 			body.replace(pos, std::string("$userlogin").length(), user_info.login);
-		if (input_rules.size() == 0)
+		if (input_rules.empty())
 			return body;
 		for (const auto& p:input_rules)
 		{
@@ -691,7 +733,7 @@ namespace http
 		std::string body {template_file};
 		if (std::size_t pos = body.find("$userlogin"); pos != std::string::npos)
 			body.replace(pos, std::string("$userlogin").length(), user_info.login);
-		if (input_rules.size() == 0)
+		if (input_rules.empty())
 			return body;
 		for (const auto& p:input_rules)
 		{

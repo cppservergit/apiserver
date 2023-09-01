@@ -19,4 +19,4 @@ namespace util
 	};
 }
 
-#endif
+#endif /* UTILS_H_ */

@@ -20,9 +20,23 @@ namespace logger
 {
 	void log(std::string_view source, std::string_view level, std::string msg, bool add_thread_id = false) noexcept;
 	void log(std::string_view source, std::string_view level, std::string msg, const std::vector<std::string>& fields, bool add_thread_id = false) noexcept;
-	std::string format(std::string msg, const std::vector<std::string>& values) noexcept;
 	void set_request_id(std::string_view id) noexcept;
 	std::string get_request_id() noexcept;
+	
+	template<typename T>
+	std::string format(std::string msg, const std::initializer_list<T>& values) noexcept
+	{
+		int i{1};
+		for (const auto& v: values) {
+			std::string item {"$"};
+			item.append(std::to_string(i));
+			if (auto pos {msg.find(item)}; pos != std::string::npos)
+				msg.replace(pos, item.size(), v);
+			++i;
+		}
+		return msg;
+	}
+	
 }
 
 #endif /* LOGGER_H_ */
