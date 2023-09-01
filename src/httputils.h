@@ -242,13 +242,14 @@ namespace http
 		bool parse_headers(line_reader& lr);
 		bool parse_read_boundary(std::string_view value);
 		std::pair<std::string, std::string> split_header_line(std::string_view line);
-		bool set_content_length(const std::string& value);
+		bool set_content_length(std::string_view value);
 		bool add_header(const std::string& header, const std::string& value);
 		bool parse_uri(line_reader& lr);
 		void set_parse_error(std::string_view msg);
-		bool validate_header(const std::string& header, const std::string& value);
+		bool validate_header(std::string_view header, std::string_view value);
 		void parse_form();
-	};	
+		std::string load_mail_template(const std::string& filename);
+	};
 }
 
 #endif /* HTTPUTILS_H_ */

@@ -357,15 +357,15 @@ namespace http
 		return true;
 	}
 	
-	bool request::set_content_length(const std::string& value)
+	bool request::set_content_length(std::string_view value)
 	{
 		try {
-			contentLength = std::stoul(value);
+			contentLength = std::stoul(value.data());
 		} catch (const std::invalid_argument& e) {
-			set_parse_error(logger::format("Bad request -> invalid content length header: $1 value: $1", {e.what(), value.c_str()}));
+			set_parse_error(logger::format("Bad request -> invalid content length header: $1 value: $1", {e.what(), value.data()}));
 			return false;			
 		} catch (const std::out_of_range& e) {
-			set_parse_error(logger::format("Bad request -> invalid content length header - $1 value: $2", {e.what(), value.c_str()}));
+			set_parse_error(logger::format("Bad request -> invalid content length header - $1 value: $2", {e.what(), value.data()}));
 			return false;			
 		}
 		return true;
@@ -392,7 +392,7 @@ namespace http
 		}
 	}
 	
-	bool request::validate_header(const std::string& header, const std::string& value)
+	bool request::validate_header(std::string_view header, std::string_view value)
 	{
 		if (header == "content-length" && !set_content_length(value)) 
 			return false;
@@ -628,11 +628,9 @@ namespace http
 	std::vector<form_field> request::parse_multipart() 
 	{
 		std::vector<form_field> fields;
-		auto vec {parse_body(payload)};
-		for (auto& part: vec) {
+		for (const auto& vec {parse_body(payload)}; auto& part: vec) {
 			auto elems {parse_part(part)};
-			auto f {get_form_field(elems)};
-			fields.push_back(f);
+			fields.push_back(get_form_field(elems));
 		}
 		return fields;
 	}
@@ -646,7 +644,7 @@ namespace http
 		for (const auto& p:input_rules)
 		{
 			std::string name {"$" + p.get_name()};
-			auto& value = params[p.get_name()];
+			const auto& value = params[p.get_name()];
 			if (std::size_t pos = sql.find(name); pos != std::string::npos) {
 				if (value.empty()) {
 					sql.replace(pos, name.length(), "NULL");
@@ -684,19 +682,21 @@ namespace http
 		}
 	}
 
+	std::string request::load_mail_template(const std::string& filename)
+	{
+		std::ifstream file(filename);
+		if (std::stringstream buffer; file.is_open()) {
+			buffer << file.rdbuf();
+			return buffer.str();
+		} else {
+			throw resource_not_found_exception("mail body template not found: " + filename);
+		}
+	}
+
 	std::string request::get_mail_body(const std::string& template_file)
 	{
-		std::string path {"/var/mail/" + template_file};
-		std::stringstream buffer;
-		{
-			std::ifstream file(path);
-			if (file.is_open())
-				buffer << file.rdbuf();
-			else {
-				throw resource_not_found_exception("mail body template not found: " + path);
-			}
-		}
-		std::string body {buffer.str()};
+		std::string tpl_path {"/var/mail/" + template_file};
+		std::string body {load_mail_template(tpl_path)};
 		if (std::size_t pos = body.find("$userlogin"); pos != std::string::npos)
 			body.replace(pos, std::string("$userlogin").length(), user_info.login);
 		if (input_rules.empty())
@@ -705,7 +705,7 @@ namespace http
 		{
 			std::string name {"$" + p.get_name()};
 			if (std::size_t pos = body.find(name); pos != std::string::npos) {
-				auto& value = params[p.get_name()];
+				const auto& value = params[p.get_name()];
 				if (value.empty()) 
 					body.replace(pos, name.length(), "");
 				else
@@ -726,7 +726,7 @@ namespace http
 		{
 			std::string name {"$" + p.get_name()};
 			if (std::size_t pos = body.find(name); pos != std::string::npos) {
-				auto& value = params[p.get_name()];
+				const auto& value = params[p.get_name()];
 				if (value.empty()) 
 					body.replace(pos, name.length(), "");
 				else
