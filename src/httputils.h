@@ -230,9 +230,15 @@ namespace http
 		std::string decode_param(std::string_view value) const noexcept;
 		void parse_param(std::string_view param) noexcept; 
 		void parse_query_string(std::string_view qs) noexcept;	
-		std::string get_part_content_type(std::string value);
-		std::pair<std::string, std::string> get_part_field(std::string value);
-		std::vector<form_field> parse_multipart();
+		
+		//upload support functions
+		std::vector<std::string_view> parse_body(std::string_view sv);
+		std::vector<std::string_view> parse_part(std::string_view body);
+		std::string_view extract_attribute(std::string_view part, const std::string& name);
+		std::string_view get_part_content_type(std::string_view line);
+		form_field get_form_field(std::vector<std::string_view> part);
+		std::vector<form_field> parse_multipart() ;	
+		
 		bool parse_headers(line_reader& lr);
 		bool parse_read_boundary(std::string_view value);
 		std::pair<std::string, std::string> split_header_line(std::string_view line);
@@ -241,6 +247,7 @@ namespace http
 		bool parse_uri(line_reader& lr);
 		void set_parse_error(std::string_view msg);
 		bool validate_header(const std::string& header, const std::string& value);
+		void parse_form();
 	};	
 }
 

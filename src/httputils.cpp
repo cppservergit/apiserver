@@ -436,7 +436,7 @@ namespace http
 	void request::parse() 
 	{
 		std::string_view str{payload};
-		bodyStartPos = str.find("\r\n\r\n") + 4;
+		bodyStartPos = str.find("\r\n\r\n", 0) + 4;
 		line_reader lr(str.substr(0, bodyStartPos));
 	
 		if (bodyStartPos <= 4) {
@@ -466,37 +466,38 @@ namespace http
 		response.set_origin(origin);
 	}
 	
+	void request::parse_form() 
+	{
+		auto fields = parse_multipart();
+		bool _save {true};
+		for (auto& f: fields) {
+			if (f.filename.empty()) {
+				params.try_emplace(f.name, f.data);
+				if (f.name=="title" && f.data.empty())
+					_save = false;
+			} else {
+				std::string file_uuid {get_uuid()};
+				params.try_emplace( "document", file_uuid);
+				params.try_emplace( "content_len", std::to_string( f.data.size() ) );
+				params.try_emplace( "content_type", f.content_type);
+				params.try_emplace( "filename", f.filename);
+				if (_save)
+					save_blob(blob_path + file_uuid, f.data);
+			}
+		}
+	}
+	
 	bool request::eof() 
 	{
 		if ( (payload.size() - bodyStartPos) == contentLength ) {
-			
-			if (method == "POST") {
-				auto fields = parse_multipart();
-				bool _save {true};
-				for (auto& f: fields) {
-					if (f.filename.empty()) {
-						params.emplace(f.name, f.data);
-						if (f.name=="title" && f.data.empty())
-							_save = false;
-					} else {
-						std::string file_uuid {get_uuid()};
-						params.emplace( "document", file_uuid);
-						params.emplace( "content_len", std::to_string( f.data.size() ) );
-						params.emplace( "content_type", f.content_type);
-						params.emplace( "filename", f.filename);
-						if (_save)
-							save_blob(blob_path + file_uuid, f.data);
-					}
-				}
-			}
-		
+			if (method == "POST") 
+				parse_form();
 			return true;
 		}
 		else
 			return false;
 	}
-	
-	
+		
 	std::string request::get_header(const std::string& name) const 
 	{
 		if (auto value = headers.find(name); value != headers.end()) 
@@ -563,97 +564,75 @@ namespace http
 		}
 	}
 	
-	std::string request::get_part_content_type(std::string value) 
-	{
-		if (auto pos = value.find(": "); pos != std::string::npos) {
-			value.erase(0, pos + 1);
-			value.pop_back();
+	std::vector<std::string_view> request::parse_body(std::string_view sv) {
+		std::vector<std::string_view> vec;
+		std::string_view body {sv.substr(bodyStartPos)};
+		const std::string delim{ "--" + boundary + "\r\n"};
+		const std::string end_delim{"--" + boundary + "--" + "\r\n"};
+		for (const auto& word : std::views::split(body, delim)) {
+			auto part {std::string_view{word}};
+			if (part.empty()) continue;
+			if (part.ends_with(end_delim))
+				part = part.substr(0, part.find(end_delim));
+			vec.push_back(part);
 		}
-		return value;
-	}	
-	
-	std::pair<std::string, std::string> request::get_part_field(std::string value) 
-	{
-		
-		std::string token_name{"name=\""};
-		std::string token_filename{"filename=\""};
-		std::string name = value;
-		std::string filename = value;
-		
-		//Content-Disposition: form-data; name="file1"; filename="a.txt"
-		if (auto pos = name.find(token_name); pos!=std::string::npos) {
-			name.erase(0, pos + token_name.size());
-			if (auto pos2 = name.find("\""); pos2!=std::string::npos)
-				name.erase(pos2);
-		} else
-			name = "";
-
-		if (auto pos = filename.find(token_filename); pos!=std::string::npos) {
-			filename.erase(0, pos + token_filename.size());
-			if (auto pos2 = filename.find("\""); pos2!=std::string::npos)
-				filename.erase(pos2);
-		} else
-			filename = "";
-		
-		return std::pair<std::string, std::string>(name, filename);
-		
+		return vec;
 	}
 
+	std::vector<std::string_view> request::parse_part(std::string_view body) {
+		std::vector<std::string_view> vec;
+		constexpr std::string_view delim{"\r\n"};
+		for (const auto& word : std::views::split(body, delim)) {
+			auto part {std::string_view{word}};
+			if (part.empty()) continue;
+			vec.push_back(part);
+		}
+		return vec;
+	}
+
+	std::string_view request::extract_attribute(std::string_view part, const std::string& name) {
+		const std::string delim1 {name + "=\""};
+		const std::string delim2 {"\""};
+		if (auto pos1 {part.find(delim1)}; pos1 != std::string::npos) {
+			pos1 += delim1.size();
+			if (auto pos2 {part.find(delim2, pos1)}; pos2 != std::string::npos) 
+				return part.substr(pos1, pos2 - pos1);
+		}
+		return "";    
+	}
+
+	std::string_view request::get_part_content_type(std::string_view line) {
+		std::string_view marker {"Content-Type: "};
+		auto pos = line.find(marker);
+		pos += marker.size();
+		return line.substr(pos);
+	}
+
+	form_field request::get_form_field(std::vector<std::string_view> part) {
+		form_field f;
+		size_t idx{1};
+		f.name = extract_attribute(part[0], "name");
+		f.filename = extract_attribute(part[0], "filename");
+		if (!f.filename.empty()) {
+			f.content_type = get_part_content_type(part[1]);
+			idx = 2;
+		}
+		for (auto i = idx; i < part.size(); i++) {
+			f.data.append(part[i]);
+			if (!f.filename.empty())
+				f.data.append("\r\n");
+		}
+		return f;
+	}
+	
 	std::vector<form_field> request::parse_multipart() 
 	{
-		std::string _boundary{ "--" + boundary };
-		std::string endBoundary{_boundary + "--"};
-		
 		std::vector<form_field> fields;
-		fields.reserve(5);
-		
-		std::string dataBuffer;
-		dataBuffer.reserve(131071);
-		std::pair<std::string, std::string> field;
-		std::string s;
-		std::istringstream is( payload.substr(bodyStartPos) );
-		std::string contentType{""};
-		
-		while ( getline(is, s) ) {
-			if (s.starts_with(_boundary)) //remove '\r'
-				s.pop_back();
-			if (s==_boundary) {
-				if (!field.first.empty()) {
-					if ( !field.second.empty() && dataBuffer.size() ) { 
-						//trim extra \r\n in file fields
-						dataBuffer.pop_back(); 
-						dataBuffer.pop_back();
-					}
-					fields.emplace_back(field.first, field.second, contentType, dataBuffer);
-					field.first = ""; field.second = ""; contentType=""; dataBuffer.clear();
-				}
-				getline(is, s); //read Content-Disposition
-				field = get_part_field(s);
-				if (!field.second.empty()) {
-					getline(is, s); //content-type
-					contentType = get_part_content_type(s);
-				} else {
-					contentType = "";
-				}
-				getline(is, s); //skip \r\n	
-				continue;
-			} else if (s==endBoundary) {
-				if (!field.first.empty()) {
-					if ( !field.second.empty() && dataBuffer.size() ) {
-						//trim extra \r\n in file fields
-						dataBuffer.pop_back(); 
-						dataBuffer.pop_back();
-					}
-					fields.emplace_back(field.first, field.second, contentType, dataBuffer);
-					field.first = ""; field.second = ""; contentType=""; dataBuffer.clear();
-				}			
-			} else {
-				if (s.size() && s.back() == '\r' && field.second.empty())
-					s.pop_back(); //remove '\r' if it is not a file field
-				dataBuffer.append(s);
-				if (!field.second.empty())
-					dataBuffer.append("\n");
-			}
+		auto vec {parse_body(payload)};
+		for (auto& part: vec) {
+			auto elems {parse_part(part)};
+			auto f {get_form_field(elems)};
+			fields.push_back(f);
 		}
 		return fields;
 	}
