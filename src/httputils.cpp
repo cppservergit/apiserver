@@ -529,7 +529,7 @@ namespace http
 			if (*it == '%') {
 				const char hex_char1 = *std::next(it, 1);
 				const char hex_char2 = *std::next(it, 2);
-				it += 2;
+				 std::advance(it, 2);
 				decoded_string += static_cast<char>(std::strtol(std::string({hex_char1, hex_char2}).c_str(), nullptr, 16));
 			} else {
 				decoded_string += *it;
