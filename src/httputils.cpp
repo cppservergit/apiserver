@@ -521,23 +521,24 @@ namespace http
 		return s;
 	}
 
-	auto decode = [](auto& it, std::string& decoded_string) {
-		if (*it == '%') {
-			const char hex_char1 = *std::next(it, 1);
-			const char hex_char2 = *std::next(it, 2);
-			 std::advance(it, 2);
-			decoded_string += static_cast<char>(std::strtol(std::string({hex_char1, hex_char2}).c_str(), nullptr, 16));
-		} else {
-			decoded_string += *it;
-		}
-	};
 
 	std::string request::decode_param(std::string_view encoded_string) const noexcept
 	{
 		std::string decoded_string;
-		decoded_string.reserve(63);
-		for (auto it = std::begin(encoded_string); it != std::end(encoded_string); ++it) 
-			decode(it, decoded_string);
+		auto it {std::begin(encoded_string)};
+		while (true) {
+			if (it == std::end(encoded_string))
+				break;
+			if (*it == '%') {
+				const char hex_char1 = *std::next(it, 1);
+				const char hex_char2 = *std::next(it, 2);
+				decoded_string += static_cast<char>(std::strtol(std::string({hex_char1, hex_char2}).c_str(), nullptr, 16));
+				std::advance(it, 3);
+			} else {
+				decoded_string += *it;
+				std::advance(it, 1);
+			}
+		}
 		return decoded_string;
 	}
 
