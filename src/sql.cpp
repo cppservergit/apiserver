@@ -39,11 +39,12 @@ namespace
 		dbutil(dbutil &&source) noexcept: m_dbconnstr{source.m_dbconnstr}, conn{source.conn}
 		{
 			source.conn = nullptr;
+			source.m_dbconnstr = "";
 		}
 
-		dbutil(const dbutil &source) noexcept: m_dbconnstr{source.m_dbconnstr}, conn{source.conn}
-		{
-		}
+		dbutil(const dbutil &source) = delete;
+		dbutil& operator=(const dbutil&) = delete;
+		dbutil& operator=(dbutil&& other) = delete;		
 		
 		~dbutil() {
 			if (conn) 
