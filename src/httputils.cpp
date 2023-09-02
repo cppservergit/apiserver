@@ -521,25 +521,21 @@ namespace http
 		return s;
 	}
 
-	//using code taken from: https://gitlab.com/eidheim/Simple-Web-Server
-	std::string request::decode_param(std::string_view value) const noexcept 
+	std::string request::decode_param(std::string_view encoded_string) const noexcept
 	{
-		std::string result;
-		result.reserve(63);
-		for(std::size_t i = 0; i < value.size(); ++i) {
-			auto &chr = value[i];
-			if(chr == '%' && i + 2 < value.size()) {
-				std::string hex{value.substr(i + 1, 2)};
-				auto decoded_chr = static_cast<char>(std::strtol(hex.c_str(), nullptr, 16));
-				result += decoded_chr;
-				i += 2;
+		std::string decoded_string;
+		decoded_string.reserve(63);
+		for (auto it = std::begin(encoded_string); it != std::end(encoded_string); ++it) {
+			if (*it == '%') {
+				const char hex_char1 = *std::next(it, 1);
+				const char hex_char2 = *std::next(it, 2);
+				it += 2;
+				decoded_string += static_cast<char>(std::strtol(std::string({hex_char1, hex_char2}).c_str(), nullptr, 16));
+			} else {
+				decoded_string += *it;
 			}
-			else if(chr == '+')
-				result += ' ';
-			else
-				result += chr;
 		}
-		return result;
+		return decoded_string;
 	}
 
 	void request::parse_param(std::string_view param) noexcept 

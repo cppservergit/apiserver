@@ -24,8 +24,8 @@
 #include <cstring>
 #include <ctime>
 #include <array>
-#include <functional>
 #include <ranges>
+#include <iterator>
 #include <sys/socket.h>
 #include "util.h"
 #include "logger.h"
