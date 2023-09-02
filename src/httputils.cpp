@@ -521,14 +521,13 @@ namespace http
 		return s;
 	}
 
-
+	//this was coded this way (while instead of for loop) to be compliant with Sonar rule cpp:S886
 	std::string request::decode_param(std::string_view encoded_string) const noexcept
 	{
 		std::string decoded_string;
 		auto it {std::begin(encoded_string)};
-		while (true) {
-			if (it == std::end(encoded_string))
-				break;
+		auto end {std::end(encoded_string)};
+		while (it != end) {
 			if (*it == '%') {
 				const char hex_char1 = *std::next(it, 1);
 				const char hex_char2 = *std::next(it, 2);
