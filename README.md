@@ -7,15 +7,21 @@ Easy to build Web APIs with Modern C++ and a minimal code framework using impera
 
 int main()
 {
-	server::register_webapi
+	server s;
+	
+	s.register_webapi
 	(
-		server::webapi_path("/api/shippers/view"), "List of shipping companies", http::verb::GET, 
-		[](http::request& req) {
-			req.response.set_body( sql::get_json_response("DB1", "select * from fn_shipper_view()") );
+		webapi_path("/api/shippers/view"), 
+		"List of shipping companies",
+		http::verb::GET, 
+		[](http::request& req) 
+		{
+			std::string sql {"select * from fn_shipper_view()"};
+			req.response.set_body( sql::get_json_response("DB1", sql) );
 		}
 	);
 	
-	server::start();
+	s.start();
 }
 ```
 
