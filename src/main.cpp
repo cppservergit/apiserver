@@ -2,5 +2,7 @@
 
 int main()
 {
-	server::start();
+	server s;
+	//add your WebAPIs here
+	s.start();
 }
