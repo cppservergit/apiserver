@@ -3,10 +3,12 @@ DATE=$(shell printf '%(%Y%m%d)T')
 CC=g++-12
 CC_OPTS=-Wall -Wextra -O3 -std=c++23 -pthread -flto=4 -fno-extern-tls-init -march=native -mtune=intel
 CC_LIBS=-lpq -lcurl -lcrypto
-CC_OBJS=env.o logger.o jwt.o httputils.o email.o sql.o login.o main.o
+CC_OBJS=env.o logger.o jwt.o httputils.o email.o sql.o login.o util.o main.o
 
-apiserver: env.o logger.o jwt.o httputils.o email.o sql.o login.o main.o
+apiserver: env.o logger.o jwt.o httputils.o email.o sql.o login.o util.o main.o
 	$(CC) $(CC_OPTS) $(CC_OBJS) $(CC_LIBS) -o "apiserver"
+	cp apiserver ..
+	chmod +x ../apiserver
 
 main.o: src/main.cpp src/server.h
 	$(CC) $(CC_OPTS) -I/usr/include/postgresql -DCPP_BUILD_DATE=$(DATE) -c src/main.cpp
@@ -26,6 +28,9 @@ httputils.o: src/httputils.cpp src/httputils.h
 jwt.o: src/jwt.cpp src/jwt.h
 	$(CC) $(CC_OPTS) -c src/jwt.cpp
 
+util.o: src/util.cpp src/util.h
+	$(CC) $(CC_OPTS) -c src/util.cpp
+
 logger.o: src/logger.cpp src/logger.h
 	$(CC) $(CC_OPTS) -c src/logger.cpp
 
@@ -33,4 +38,4 @@ env.o: src/env.cpp src/env.h
 	$(CC) $(CC_OPTS) -c src/env.cpp
 
 clean:
-	rm env.o logger.o jwt.o sql.o login.o httputils.o email.o main.o
+	rm env.o logger.o jwt.o sql.o login.o email.o httputils.o util.o main.o
