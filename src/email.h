@@ -10,7 +10,9 @@
 #ifndef EMAIL_H_
 #define EMAIL_H_
 
-#include <curl/curl.h>
+extern "C" {
+	#include <curl/curl.h>
+}
 #include <iostream>
 #include <string>
 #include <vector>
@@ -25,7 +27,7 @@ namespace smtp
 {
 	struct mail
 	{
-			mail(const std::string& server, const std::string& user, const std::string& pwd);
+			explicit mail(const std::string& server, const std::string& user, const std::string& pwd);
 			mail() = delete;
 			mail(const mail&) = delete;
 			mail(mail&&) = delete;

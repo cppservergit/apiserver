@@ -695,28 +695,11 @@ namespace http
 	std::string request::get_mail_body(const std::string& template_file)
 	{
 		std::string tpl_path {"/var/mail/" + template_file};
-		std::string body {load_mail_template(tpl_path)};
-		if (std::size_t pos = body.find("$userlogin"); pos != std::string::npos)
-			body.replace(pos, std::string("$userlogin").length(), user_info.login);
-		if (input_rules.empty())
-			return body;
-		for (const auto& p:input_rules)
-		{
-			std::string name {"$" + p.get_name()};
-			if (std::size_t pos = body.find(name); pos != std::string::npos) {
-				const auto& value = params[p.get_name()];
-				if (value.empty()) 
-					body.replace(pos, name.length(), "");
-				else
-					body.replace(pos, name.length(), value);
-			}
-		}
-		return body;
+		return replace_params(load_mail_template(tpl_path));
 	}
 	
-	std::string request::replace_params(const std::string& template_file)
+	std::string request::replace_params(std::string body)
 	{
-		std::string body {template_file};
 		if (std::size_t pos = body.find("$userlogin"); pos != std::string::npos)
 			body.replace(pos, std::string("$userlogin").length(), user_info.login);
 		if (input_rules.empty())
@@ -735,5 +718,11 @@ namespace http
 		return body;
 	}
 	
+	void request::log(std::string_view source, std::string_view level, std::string msg) noexcept
+	{
+		auto traceid {get_header("x-request-id")};
+		msg = replace_params(msg);
+		logger::log(source, level, msg, true, traceid);
+	}
 
 }

@@ -1,6 +1,10 @@
 #ifndef UTIL_H_
 #define UTIL_H_
 
+#include <iomanip>
+#include <chrono>
+#include <sstream>
+
 namespace util
 {
 	//taken from https://www.cppstories.com/2021/heterogeneous-access-cpp20/ 
@@ -17,6 +21,9 @@ namespace util
 		return std::hash<std::string>{}(txt);
 	  }
 	};
+
+	//return date as yyyy-mm-dd
+	std::string today() noexcept;
 }
 
 #endif /* UTILS_H_ */

@@ -82,6 +82,7 @@ struct webapi_path
 		std::string_view m_path;
 };
 
+
 auto consumer = [](std::stop_token tok, auto srv) noexcept 
 {
 	logger::log("pool", "info", "starting worker thread", true);
@@ -114,7 +115,6 @@ auto consumer = [](std::stop_token tok, auto srv) noexcept
 	//ending task - free resources
 	logger::log("pool", "info", "stopping worker thread", true);
 };	
-	
 
 struct server
 {
@@ -305,8 +305,6 @@ struct server
 	{
 		++g_active_threads;	
 
-		logger::set_request_id(req.get_header("x-request-id"));
-
 		auto start = std::chrono::high_resolution_clock::now();
 
 		if (!req.errcode) {
@@ -369,6 +367,7 @@ struct server
 			logger::log("epoll", "error", "bind() failed  port: $1 description: $2", {std::to_string(port), std::string(strerror(errno))});
 			exit(-1);
 		}
+		listen(fd, SOMAXCONN);
 		logger::log("epoll", "info", "listen socket FD: $1 port: $2", {std::to_string(fd), std::to_string(port)});
 		return fd;
 	}
@@ -506,7 +505,6 @@ struct server
 		logger::log("epoll", "info", "starting epoll FD: $1", {std::to_string(epoll_fd)});
 
 		int listen_fd {get_listenfd(port)};
-		listen(listen_fd, SOMAXCONN);
 		
 		epoll_add_event(listen_fd, epoll_fd, EPOLLIN);
 		epoll_add_event(m_signal, epoll_fd, EPOLLIN);
@@ -616,10 +614,10 @@ struct server
 				std::array<char, 128> hostname{0};
 				gethostname(hostname.data(), hostname.size());
 				const double avg{ ( g_counter > 0 ) ? g_total_time / g_counter : 0 };
-				std::array<char, 64> str1{0}; std::to_chars(str1.data(), str1.data() + str1.size(), g_counter);
-				std::array<char, 64> str2{0}; std::to_chars(str2.data(), str2.data() + str2.size(), avg, std::chars_format::fixed, 8);
-				std::array<char, 64> str3{0}; std::to_chars(str3.data(), str3.data() + str3.size(), g_connections);
-				std::array<char, 64> str4{0}; std::to_chars(str4.data(), str4.data() + str4.size(), g_active_threads);
+				std::array<char, 64> str1{}; std::to_chars(str1.data(), str1.data() + str1.size(), g_counter);
+				std::array<char, 64> str2{}; std::to_chars(str2.data(), str2.data() + str2.size(), avg, std::chars_format::fixed, 8);
+				std::array<char, 64> str3{}; std::to_chars(str3.data(), str3.data() + str3.size(), g_connections);
+				std::array<char, 64> str4{}; std::to_chars(str4.data(), str4.data() + str4.size(), g_active_threads);
 				std::string json {
 					logger::format(
 						R"({"status": "OK", "data":[{"pod":"$1","totalRequests":$2,"avgTimePerRequest":$3,"connections":$4,"activeThreads":$5}]})",
@@ -744,22 +742,19 @@ struct server
 		register_webapi(_path, _description, _verb, {}, {}, _fn, _is_secure);
 	}
 
-	void send_mail(const std::string& to, const std::string& subject, const std::string& body)
+	void send_mail(const std::string& x_request_id, const std::string& to, const std::string& subject, const std::string& body)
 	{
-		send_mail(to, "", subject, body, "", "");
+		send_mail(x_request_id, to, "", subject, body, "", "");
 	}
 
-	void send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body)
+	void send_mail(const std::string& x_request_id, const std::string& to, const std::string& cc, const std::string& subject, const std::string& body)
 	{
-		send_mail(to, cc, subject, body, "", "");
+		send_mail(x_request_id, to, cc, subject, body, "", "");
 	}
 
-	void send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body, const std::string& attachment, const std::string& attachment_filename)
+	void send_mail(const std::string& x_request_id, const std::string& to, const std::string& cc, const std::string& subject, const std::string& body, const std::string& attachment, const std::string& attachment_filename)
 	{
-		//capture current thread value before launching new thread
-		auto x_request_id = logger::get_request_id(); 
-		
-		std::jthread task ( [=]() {
+		std::jthread task ([=]() {
 			smtp::mail m(env::get_str("CPP_MAIL_SERVER"), env::get_str("CPP_MAIL_USER"), env::get_str("CPP_MAIL_PWD"));
 			m.set_x_request_id(x_request_id); 
 			m.set_to(to);

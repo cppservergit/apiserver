@@ -19,9 +19,6 @@ namespace smtp
 	void mail::send() noexcept
 	{
 		
-		if (!x_request_id.empty())
-			logger::set_request_id(x_request_id);
-		
 		std::string domain {""};
 		if (auto pos = username.find("@"); pos != std::string::npos) {
 			domain = username.substr(pos);
@@ -71,13 +68,13 @@ namespace smtp
 					curl_mime_filename(part, doc.filename.c_str());
 			}
 			
-			logger::log("email", "info", "sending email to: " + to + " with subject: " + subject, true);
+			logger::log("email", "info", "sending email to: " + to + " with subject: " + subject, true, x_request_id);
 			
 			curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
 			res = curl_easy_perform(curl);
 		 
 			if(res != CURLE_OK)
-				logger::log("email", "error", std::string(__PRETTY_FUNCTION__) + " curl_easy_perform() failed: " + std::string(curl_easy_strerror(res)), true);
+				logger::log("email", "error", "curl_easy_perform() failed: $1", {std::string(curl_easy_strerror(res))}, true, x_request_id);
 		}
 	}
 

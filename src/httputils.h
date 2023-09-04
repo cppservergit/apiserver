@@ -222,7 +222,8 @@ namespace http
 		std::string get_sql(std::string sql);
 		void check_security(const std::vector<std::string>& roles = {});
 		std::string get_mail_body(const std::string& template_file);
-		std::string replace_params(const std::string& template_msg);
+		std::string replace_params(std::string body);
+		void log(std::string_view source, std::string_view level, std::string msg) noexcept;
 		
 	  private:
 		void test_field(const http::input_rule& r, std::string& value);

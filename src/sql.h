@@ -14,7 +14,9 @@
 #include <iostream>
 #include <unordered_map>
 #include <vector>
-#include <libpq-fe.h>
+extern "C" {
+	#include <libpq-fe.h>
+}
 #include "logger.h"
 #include "env.h"
 #include "util.h"
