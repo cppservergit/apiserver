@@ -920,8 +920,19 @@ Valgrind report (GCC sanitizers only print if problems are found):
 ==3412== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
 ```
 
-API-Server++ is a small program, code coverage is pretty complete with these tests, and most possible code paths, if not all, are executed.
+API-Server++ is a small program, code coverage is pretty complete with these tests, and most probable code paths, if not all, are executed.
 Please note that in order to use dynamic analysis tools you need to compile with `-g` and `-O0`.
+
+## Static analysis with SonarCloud
+
+SonarCloud is the top player in C++ static analysis, performing rigorous analysis of the code to ensure compliance with [C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines) as well as a database of Sonar C++ Rules, it is really strict, API-Server++ was analyzed and rewritten during 2 weeks in order to achieve a top score with SonarCloud, this way we can provide a quality Modern C++ code-base that implements the industry-accepted best practices, and at the same time is simple and fast.
+
+![image](https://github.com/cppservergit/apiserver/assets/126841556/c1f10e91-799b-4cd6-be76-ec9c38bd2b27)
+
+The 3 "code smells" are related to very specific "issues":
+
+* Classes that encapsulate C APIs (libcurl and libpq) and thus comply with RAII using constructors/destructors to properly manage resources in a Modern C++ fashion, but according to certain Sonar rule, this is an issue.
+* Using low-level date APIs to format dates instead of std::format, but we are using GCC 12.3 and sadly std::format is not available, if we had used more Modern C++ date functions, like std::put_time, the code involved would be 10 times slower and it is mission critical from the performance perspective (produces the HTTP responde `Date` header).
 
 ## Static analysis with open-source tools
 
