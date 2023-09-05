@@ -7,9 +7,9 @@ export CPP_POOL_SIZE=4
 export CPP_JWT_SECRET="basica"
 export CPP_JWT_EXP=600
 # PGSQL authenticator config
-export CPP_LOGINDB="host=demodb.mshome.net port=5432 dbname=testdb connect_timeout=10 user=postgres password=basica application_name=CPPServer"
+export CPP_LOGINDB="host=demodb.mshome.net port=5432 dbname=testdb connect_timeout=10 user=postgres password=basica application_name=APIServer"
 # PGSQL data sources
-export DB1="host=demodb.mshome.net port=5432 dbname=testdb connect_timeout=10 user=postgres password=basica application_name=CPPServer"
+export DB1="host=demodb.mshome.net port=5432 dbname=testdb connect_timeout=10 user=postgres password=basica application_name=APIServer"
 # secure mail config
 export CPP_MAIL_SERVER="smtp://smtp.gmail.com:587"
 export CPP_MAIL_USER="admin@martincordova.com"
