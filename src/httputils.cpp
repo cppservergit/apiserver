@@ -754,11 +754,11 @@ namespace http
 			m.set_subject(subject);
 			m.set_body(mail_body);
 			if (!attachment.empty()) {
-				std::string path {attachment.starts_with("/") ? attachment : "/var/blobs/" + attachment};
+				std::string filepath {attachment.starts_with("/") ? attachment : "/var/blobs/" + attachment};
 				if (!attachment_filename.empty())
-					m.add_attachment(path, attachment_filename);
+					m.add_attachment(filepath, attachment_filename);
 				else
-					m.add_attachment(path);
+					m.add_attachment(filepath);
 			}
 			m.send();
 		});
