@@ -30,6 +30,7 @@
 #include "util.h"
 #include "logger.h"
 #include "jwt.h"
+#include "email.h"
 
 namespace http
 {
@@ -203,7 +204,6 @@ namespace http
 		}
 
 		request() = default;
-		
 		void clear();
 		void parse();
 		bool eof();
@@ -221,20 +221,18 @@ namespace http
 		
 		std::string get_sql(std::string sql);
 		void check_security(const std::vector<std::string>& roles = {});
-		std::string get_mail_body(const std::string& template_file);
-		std::string replace_params(std::string body);
 		void log(std::string_view source, std::string_view level, std::string msg) noexcept;
+		
+		void send_mail(const std::string& to, const std::string& subject, const std::string& body) noexcept;
+		void send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body) noexcept;
+		void send_mail(const std::string& to, const std::string& cc, 
+			const std::string& subject, const std::string& body, const std::string& attachment, const std::string& attachment_filename) noexcept;
 		
 	  private:
 		void test_field(const http::input_rule& r, std::string& value);
-		std::string lowercase(std::string_view s) noexcept;	
 		std::string decode_param(std::string_view value) const noexcept;
 		void parse_param(std::string_view param) noexcept; 
 		void parse_query_string(std::string_view qs) noexcept;	
-		
-		//upload support functions
-		std::vector<form_field> parse_multipart() ;	
-		
 		bool parse_headers(line_reader& lr);
 		bool parse_read_boundary(std::string_view value);
 		std::pair<std::string, std::string> split_header_line(std::string_view line);
@@ -244,7 +242,6 @@ namespace http
 		void set_parse_error(std::string_view msg);
 		bool validate_header(std::string_view header, std::string_view value);
 		void parse_form();
-		std::string load_mail_template(const std::string& filename);
 	};
 }
 

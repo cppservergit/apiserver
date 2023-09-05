@@ -742,37 +742,6 @@ struct server
 		register_webapi(_path, _description, _verb, {}, {}, _fn, _is_secure);
 	}
 
-	void send_mail(const std::string& x_request_id, const std::string& to, const std::string& subject, const std::string& body)
-	{
-		send_mail(x_request_id, to, "", subject, body, "", "");
-	}
-
-	void send_mail(const std::string& x_request_id, const std::string& to, const std::string& cc, const std::string& subject, const std::string& body)
-	{
-		send_mail(x_request_id, to, cc, subject, body, "", "");
-	}
-
-	void send_mail(const std::string& x_request_id, const std::string& to, const std::string& cc, const std::string& subject, const std::string& body, const std::string& attachment, const std::string& attachment_filename)
-	{
-		std::jthread task ([=]() {
-			smtp::mail m(env::get_str("CPP_MAIL_SERVER"), env::get_str("CPP_MAIL_USER"), env::get_str("CPP_MAIL_PWD"));
-			m.set_x_request_id(x_request_id); 
-			m.set_to(to);
-			m.set_cc(cc);
-			m.set_subject(subject);
-			m.set_body(body);
-			if (!attachment.empty()) {
-				std::string path {attachment.starts_with("/") ? attachment : "/var/blobs/" + attachment};
-				if (!attachment_filename.empty())
-					m.add_attachment(path, attachment_filename);
-				else
-					m.add_attachment(path);
-			}
-			m.send();
-		} );
-		task.detach();
-	}
-
 	void start()
 	{
 		prebuilt_services();

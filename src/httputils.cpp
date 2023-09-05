@@ -3,6 +3,13 @@
 namespace
 {
 	/* utility functions */
+	std::string lowercase(std::string_view sv) noexcept 
+	{
+		std::string s {sv};
+		std::ranges::transform( s, s.begin(), [](unsigned char c){ return std::tolower(c); } );
+		return s;
+	}
+	
 	inline std::string trim(const std::string & source)
 	{
 		std::string s(source);
@@ -144,7 +151,56 @@ namespace
 		}
 		return f;
 	}
+	
+	std::vector<http::form_field> parse_multipart(auto req) 
+	{
+		std::vector<http::form_field> fields;
+		for (const auto& vec {parse_body(req)}; auto& part: vec) {
+			auto elems {parse_part(part)};
+			fields.push_back(get_form_field(elems));
+		}
+		return fields;
+	}
 	//--------------------------
+
+	//mail and log support------
+	std::string load_mail_template(const std::string& filename)
+	{
+		std::ifstream file(filename);
+		if (std::stringstream buffer; file.is_open()) {
+			buffer << file.rdbuf();
+			return buffer.str();
+		} else {
+			throw http::resource_not_found_exception("mail body template not found: " + filename);
+		}
+	}
+
+	std::string replace_params(auto req, std::string body)
+	{
+		if (std::size_t pos = body.find("$userlogin"); pos != std::string::npos)
+			body.replace(pos, std::string("$userlogin").length(), req->user_info.login);
+		if (req->input_rules.empty())
+			return body;
+		for (const auto& p:req->input_rules)
+		{
+			std::string name {"$" + p.get_name()};
+			if (std::size_t pos = body.find(name); pos != std::string::npos) {
+				const auto& value = req->params[p.get_name()];
+				if (value.empty()) 
+					body.replace(pos, name.length(), "");
+				else
+					body.replace(pos, name.length(), value);
+			}
+		}
+		return body;
+	}	
+
+	std::string get_mail_body(auto req, const std::string& template_file)
+	{
+		std::string tpl_path {"/var/mail/" + template_file};
+		return replace_params(req, load_mail_template(tpl_path));
+	}
+	//---------------------
 
 
 }
@@ -533,7 +589,7 @@ namespace http
 	
 	void request::parse_form() 
 	{
-		auto fields = parse_multipart();
+		auto fields = parse_multipart(this);
 		bool _save {true};
 		for (auto& f: fields) {
 			if (f.filename.empty()) {
@@ -579,13 +635,6 @@ namespace http
 			return "";
 	}
 
-	std::string request::lowercase(std::string_view sv) noexcept 
-	{
-		std::string s {sv};
-		std::ranges::transform( s, s.begin(), [](unsigned char c){ return std::tolower(c); } );
-		return s;
-	}
-
 	//this was coded this way (while instead of for loop) to be compliant with Sonar rule cpp:S886
 	std::string request::decode_param(std::string_view encoded_string) const noexcept
 	{
@@ -626,16 +675,6 @@ namespace http
 		for (const auto& word : std::views::split(query_string, delim)) {
 			parse_param(std::string_view{word});
 		}
-	}
-	
-	std::vector<form_field> request::parse_multipart() 
-	{
-		std::vector<form_field> fields;
-		for (const auto& vec {parse_body(this)}; auto& part: vec) {
-			auto elems {parse_part(part)};
-			fields.push_back(get_form_field(elems));
-		}
-		return fields;
 	}
 
 	std::string request::get_sql(std::string sql)
@@ -685,48 +724,45 @@ namespace http
 		}
 	}
 
-	std::string request::load_mail_template(const std::string& filename)
-	{
-		std::ifstream file(filename);
-		if (std::stringstream buffer; file.is_open()) {
-			buffer << file.rdbuf();
-			return buffer.str();
-		} else {
-			throw resource_not_found_exception("mail body template not found: " + filename);
-		}
-	}
-
-	std::string request::get_mail_body(const std::string& template_file)
-	{
-		std::string tpl_path {"/var/mail/" + template_file};
-		return replace_params(load_mail_template(tpl_path));
-	}
-	
-	std::string request::replace_params(std::string body)
-	{
-		if (std::size_t pos = body.find("$userlogin"); pos != std::string::npos)
-			body.replace(pos, std::string("$userlogin").length(), user_info.login);
-		if (input_rules.empty())
-			return body;
-		for (const auto& p:input_rules)
-		{
-			std::string name {"$" + p.get_name()};
-			if (std::size_t pos = body.find(name); pos != std::string::npos) {
-				const auto& value = params[p.get_name()];
-				if (value.empty()) 
-					body.replace(pos, name.length(), "");
-				else
-					body.replace(pos, name.length(), value);
-			}
-		}
-		return body;
-	}
-	
 	void request::log(std::string_view source, std::string_view level, std::string msg) noexcept
 	{
 		auto traceid {get_header("x-request-id")};
-		msg = replace_params(msg);
+		msg = replace_params(this, msg);
 		logger::log(source, level, msg, true, traceid);
+	}
+
+	void request::send_mail(const std::string& to, const std::string& subject, const std::string& body) noexcept
+	{
+		send_mail(to, "", subject, body, "", "");
+	}
+
+	void request::send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body) noexcept
+	{
+		send_mail(to, cc, subject, body, "", "");
+	}
+
+	void request::send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body, 
+		const std::string& attachment, const std::string& attachment_filename) noexcept
+	{
+		auto mail_body {get_mail_body(this, body)};
+		auto x_request_id {get_header("x-request-id")};
+		std::jthread task ([=]() {
+			smtp::mail m(env::get_str("CPP_MAIL_SERVER"), env::get_str("CPP_MAIL_USER"), env::get_str("CPP_MAIL_PWD"));
+			m.set_x_request_id(x_request_id);
+			m.set_to(to);
+			m.set_cc(cc);
+			m.set_subject(subject);
+			m.set_body(mail_body);
+			if (!attachment.empty()) {
+				std::string path {attachment.starts_with("/") ? attachment : "/var/blobs/" + attachment};
+				if (!attachment_filename.empty())
+					m.add_attachment(path, attachment_filename);
+				else
+					m.add_attachment(path);
+			}
+			m.send();
+		});
+		task.detach();
 	}
 
 }
