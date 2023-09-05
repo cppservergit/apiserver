@@ -823,11 +823,12 @@ export CPP_MAIL_PWD="your-smtp-password"
 
 A new thread will be used to send the email, this way your function returns immediately without blocking the thread that's executing your API function, and the server can send the response to the client and keep processing requests. Any error returned by `libcurl` will be recorded in the logs. It's recommended practice to invoke the `send_mail()` function after executing your database I/O and the `set_body()` function. If any error occurs doing I/O, the `send_mail()` will never be called. Mail delivery errors will be probably notified to the sender address, that is the address configured in the `CPP_MAIL_USER` environment variable.
 
-The server:: module provides several functions to send a mail with more or fewer arguments (CC, attachments, etc) to make the code simpler if possible.
+The http::request class provides several functions to send a mail with more or fewer arguments (CC, attachments, etc) to make the code simpler whenever possible.
 
 Example of simple invocation without CC and no attachment:
 ```
-	server::register_webapi
+	server s;
+	s.register_webapi
 	(
 		server::webapi_path("/api/gasto/add"), 
 		"Add expense record",
@@ -843,34 +844,34 @@ Example of simple invocation without CC and no attachment:
 		{
 			sql::exec_sql("DB1", req.get_sql("call sp_gasto_insert($fecha, $categ_id, $monto, $motivo)"));
 			req.response.set_body("{\"status\": \"OK\"}");
-			server::send_mail(
-					jwt::user_get_mail(), //TO
+			req.send_mail(
+					req.user_info.mail, //TO
 					"Document uploaded via API-Server++",
-					req.get_mail_body("expenditure-msg.html", jwt::user_get_login())
+					"expenditure-msg.html"
 				);			
 		}
 	);
 ```
-You can obtain the current user email using `jwt::user_get_mail()` as well as its login name. The body of the message must be an HTML document, you provide it, it must be stored in /var/mail, it can contain parameter markers corresponding to the input fields, these are used like in the SQL template: $fieldname. The function `request::get_mail_body()` takes care of loading the template and injecting input fields if necessary.
+You can obtain the current user email using `req.user_info.mail`. The body of the message must be an HTML document that you provide, it must be stored in /var/mail, and it can contain parameter markers corresponding to the input fields, these are used like in the SQL template: $fieldname. The `send_mail()` function takes care of loading the template and injecting input fields if necessary.
 
-There is a variant of the `server::send_mail()` function that accepts a CC argument:
+There is a variant of the `send_mail()` function that accepts a CC argument, and also with single attachment:
 ```
 void send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body);
 ```
 
 The code below sends an email with an attachment:
 ```
-			server::send_mail(
-					jwt::user_get_mail(), //TO
-					"", //CC - can be empty
+			req.send_mail(
+					req.user_info.mail, //TO
+					"cppserver@martincordova.com", //CC - can be empty
 					"Document uploaded via API-Server++",
-					req.get_mail_body("upload-msg.html", jwt::user_get_login()),
+					"upload-msg.html",
 					req.get_param("document"), //attachment
 					req.get_param("filename") //original filename
 				);	
 ```
-In this particular case, a file was uploaded using API-Server++ automatic upload facility, it does store the file with a unique UUID name in a storage area using the path `/var/blobs`, on Kubernetes this is only a path mapped to a shared storage service, when running native on Linux this may be the actual directory or an NFS mount.
-The `req.get_param("document")` call returns the UUID name of the uploaded file, we also provide the original filename so the attachment will be properly named inside the mail. If we use an absolute path like "/mydir/mufile.pdf" then the `server::send_mail` won't assume this is a blob, it will try to load the file from the path provided and the last parameter can be passed as an empty string `""`.
+In this particular example, a file was uploaded using API-Server++ automatic upload facility, it does store the file with a unique UUID name in a storage area using the path `/var/blobs`, on Kubernetes this is only a path mapped to a shared storage service, when running native on Linux this may be the actual directory or an NFS mount.
+The `req.get_param("document")` call returns the UUID name of the uploaded file, we also provide the original filename so the attachment will be properly named inside the mail. If we use an absolute path like "/mydir/myfile.pdf" then the `send_mail` function won't assume this is a blob, it will try to load the file from the path provided and the last parameter can be passed as an empty string `""`.
 The example above was tailored to the case of blob uploads, where files are stored in a directory mapped to `/var/blobs` using an auto-generated UUID as the file name and the rest of the parameters are stored in a table using a stored procedure, you may want to create a sort of feedback sending an email notifying the occurrence of the upload, the uploaded file and its basic information (title, size, etc).
 
 ## Demo App
@@ -904,7 +905,27 @@ When using API-Server++ as a container on Kubernetes, volumes and volume mapping
 
 ## Memory safety
 
-API-Sever++ has been tested for memory safety (leaks and overflows) with static analysis tools, CPPCheck and FlawFinder, as well as dynamic analysis instrumentation including Valgrind and GCC memory sanitizer, it has passed all tests, only FlawFinder prints 3 warnings that can be safely assumed as false-positives:
+API-Sever++ has been tested for memory safety (leaks and overflows) with dynamic analysis instrumentation tools including Valgrind and GCC memory sanitizer (-fsanitize=leak and -fsanitize=address), It has passed all tests, with no leaks or warning of any sort when running a load of 2000 concurrent connections executing a variety of API requests involving database operations as well as diagnostics.
+
+Valgrind report (GCC sanitizers only print if problems are found):
+
+```
+==3412== HEAP SUMMARY:
+==3412==     in use at exit: 0 bytes in 0 blocks
+==3412==   total heap usage: 4,423,921 allocs, 4,423,921 frees, 1,453,005,010 bytes allocated
+==3412==
+==3412== All heap blocks were freed -- no leaks are possible
+==3412==
+==3412== For lists of detected and suppressed errors, rerun with: -s
+==3412== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+```
+
+API-Server++ is a small program, code coverage is pretty complete with these tests, and most possible code paths, if not all, are executed.
+Please note that in order to use dynamic analysis tools you need to compile with `-g` and `-O0`.
+
+## Static analysis with open-source tools
+
+API-Sever++ has been tested with CPPCheck and FlawFinder, it has passed all tests, FlawFinder prints 3 warnings that can be safely assumed as false positives:
 
 ```
 FINAL RESULTS:
