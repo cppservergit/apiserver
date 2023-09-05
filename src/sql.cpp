@@ -27,29 +27,23 @@ namespace
 		std::string m_dbconnstr;
 		PGconn* conn{nullptr};
 				
-		dbutil() = default; 
-		
 		explicit dbutil(const std::string& conn_info) noexcept: m_dbconnstr{conn_info}
 		{
 			conn = PQconnectdb(m_dbconnstr.c_str());
 			if (PQstatus(conn) != CONNECTION_OK)
 				logger::log(LOGGER_SRC, "error", "dbutil() -> $1", {get_error(conn)}, true);
 		}
-		
-		dbutil(dbutil &&source) noexcept: m_dbconnstr{source.m_dbconnstr}, conn{source.conn}
-		{
-			source.conn = nullptr;
-			source.m_dbconnstr = "";
-		}
 
-		dbutil(const dbutil &source) = delete;
-		dbutil& operator=(const dbutil&) = delete;
-		dbutil& operator=(dbutil&& other) = delete;		
-		
 		~dbutil() {
 			if (conn) 
 				PQfinish(conn);
 		}
+
+		dbutil() = default; 
+		dbutil(dbutil &&source) = delete;
+		dbutil(const dbutil &source) = delete;
+		dbutil& operator=(const dbutil&) = delete;
+		dbutil& operator=(dbutil&& other) = delete;		
 		
 		inline void reset_connection() noexcept
 		{
