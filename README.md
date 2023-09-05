@@ -241,11 +241,12 @@ On the same terminal windows where API-Server++ is running, please press CTRL-C 
 nano src/main.cpp
 ```
 
-Add this code right above server:start():
+Add this code right above s.start():
 ```
-	server::register_webapi
+	server s;
+	s.register_webapi
 	(
-		server::webapi_path("/api/shippers/view"), 
+		webapi_path("/api/shippers/view"), 
 		"List of shipping companies",
 		http::verb::GET, 
 		{} /* inputs */, 	
@@ -293,9 +294,10 @@ The whole program should look like this:
 
 int main()
 {
-        server::register_webapi
+	server s;
+        s.register_webapi
         (
-                server::webapi_path("/api/shippers/view"),
+                webapi_path("/api/shippers/view"),
                 "List of shipping companies",
                 http::verb::GET,
                 {} /* inputs */,
@@ -306,7 +308,7 @@ int main()
                 }
         );
 
-        server::start();
+        s.start();
 }
 ```
 
@@ -494,7 +496,7 @@ You can configure the log to be less verbose by changing the environment variabl
 export CPP_LOGIN_LOG=0
 export CPP_HTTP_LOG=0
 ```
-__Note__: warning and error log entries cannot be disabled.
+__Note__: warnings and error log entries cannot be disabled.
 
 ## Retrieving multiple resultsets
 
@@ -540,11 +542,11 @@ Stop the server with CTRL-C and edit main.cpp:
 nano src/main.cpp
 ```
 
-Add this code right above server::start()
+Add this code right above s.start()
 ```
-	server::register_webapi
+	s.register_webapi
 	(
-		server::webapi_path("/api/customer/info"), 
+		webapi_path("/api/customer/info"), 
 		"Retrieve customer record and the list of his purchase orders",
 		http::verb::GET, 
 		{ /* inputs */
@@ -569,9 +571,10 @@ The whole program should look like this:
 
 int main()
 {
-        server::register_webapi
+	server s;
+        s.register_webapi
         (
-                server::webapi_path("/api/shippers/view"),
+                webapi_path("/api/shippers/view"),
                 "List of shipping companies",
                 http::verb::GET,
                 {} /* inputs */,
@@ -582,9 +585,9 @@ int main()
                 }
         );
 
-	server::register_webapi
+	s.register_webapi
 	(
-		server::webapi_path("/api/customer/info"), 
+		webapi_path("/api/customer/info"), 
 		"Retrieve customer record and the list of his purchase orders",
 		http::verb::GET, 
 		{ /* inputs */
@@ -597,7 +600,7 @@ int main()
 		}
 	);
 
-        server::start();
+        s.start();
 }
 ```
 
@@ -690,9 +693,9 @@ The TestDB database has many functions that return JSON and can be used to creat
 ### Invoke stored procedure to insert or update record
 
 ```
-	server::register_webapi
+	s.register_webapi
 	(
-		server::webapi_path("/api/gasto/add"), 
+		webapi_path("/api/gasto/add"), 
 		"Add expense record",
 		http::verb::POST, 
 		{
@@ -715,9 +718,9 @@ When the API executes a procedure that modifies data and does not return any res
 
 The case for using a procedure that updates a record is very similar, but in this case we used the roles field to set authorization restrictions, only users with the specified roles (can_update) can invoke this Web API:
 ```
-	server::register_webapi
+	s.register_webapi
 	(
-		server::webapi_path("/api/gasto/update"), 
+		webapi_path("/api/gasto/update"), 
 		"Update expense record",
 		http::verb::POST, 
 		{
@@ -765,9 +768,9 @@ ALTER PROCEDURE public.sp_gasto_update(integer, date, integer, double precision,
 
 This API executes an SQL function that returns a JSON response, sales by category for a period of time, the date-from/date-to parameters are the input rules for this API:
 ```
-	server::register_webapi
+	s.register_webapi
 	(
-		server::webapi_path("/api/sales/query"), 
+		webapi_path("/api/sales/query"), 
 		"Sales report by category in a time interval",
 		http::verb::POST, 
 		{
@@ -789,11 +792,11 @@ If you want to test this API, there is data for dates between 1994-01-01 and 199
 
 ### Delete record API with additional custom validator
 
-This API will invoke a stored procedure to delete a record, but instead of waiting for the database raise an error if there is a violation of referential integrity, the API implements a custom validator rule using a lambda inside the main function body, this way an INVALID status with a specific message may be returned instead of an ERROR:
+This API will invoke a stored procedure to delete a record, but instead of waiting for the database to raise an error if there is a violation of referential integrity, the API implements a custom validator rule using a lambda inside the main function body, this way an INVALID status with a specific message may be returned instead of an ERROR:
 ```
-	server::register_webapi
+	s.register_webapi
 	(
-		server::webapi_path("/api/categ/delete"), 
+		webapi_path("/api/categ/delete"), 
 		"Delete category record",
 		http::verb::GET, 
 		{{"id", http::field_type::INTEGER, true}},
@@ -830,7 +833,7 @@ Example of simple invocation without CC and no attachment:
 	server s;
 	s.register_webapi
 	(
-		server::webapi_path("/api/gasto/add"), 
+		webapi_path("/api/gasto/add"), 
 		"Add expense record",
 		http::verb::POST, 
 		{
@@ -931,8 +934,28 @@ SonarCloud is the top player in C++ static analysis, performing rigorous analysi
 
 The 3 "code smells" are related to very specific "issues":
 
-* Classes that encapsulate C APIs (libcurl and libpq) and thus comply with RAII using constructors/destructors to properly manage resources in a Modern C++ fashion, but according to certain Sonar rule, this is an issue.
-* Using low-level date APIs to format dates instead of std::format, but we are using GCC 12.3 and sadly std::format is not available, if we had used more Modern C++ date functions, like std::put_time, the code involved would be 10 times slower and it is mission critical from the performance perspective (produces the HTTP responde `Date` header).
+* Classes that encapsulate C APIs (libcurl and libpq) and consequently comply with RAII principle using constructor and destructor to properly manage resources in a Modern C++ fashion, but according to certain Sonar [Rule of Zero](https://sonarcloud.io/organizations/cppservergit/rules?open=cpp%3AS4963&rule_key=cpp%3AS4963), this is an issue, in any case it is unavoidable for API-Server++ since it does require direct access to these APIs for maximum performance.
+* Using low-level date APIs to format dates instead of std::format, but we are using GCC 12.3 and sadly std::format is not available. If we had used more Modern C++ date functions like std::put_time, the code involved would be 10 times slower and it is mission critical from the performance perspective because it generates the HTTP response `Date` header for __every__ API requests. The current code is thread-safe, memory-safe, simple and has the best performance available:
+
+```
+	std::string get_response_date() noexcept
+	{
+		std::array<char, 64> buf;
+		auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+		std::tm tm{};
+		gmtime_r(&now, &tm);
+		std::strftime(buf.data(), buf.size(), "%a, %d %b %Y %H:%M:%S GMT", &tm);
+		return std::string(buf.data());		
+	}
+```
+
+The SonarCloud issue is raised because of the use of the `std::strftime()` function.
+
+If using GCC 13.x then all of the above code can be changed to this Modern C++ approach using chrono and format:
+```
+    const auto tp {std::chrono::system_clock::now()};
+    const auto date_hdr {std::format("{:%a, %d %b %Y %H:%M:%S GMT}", tp)};
+```
 
 ## Static analysis with open-source tools
 
