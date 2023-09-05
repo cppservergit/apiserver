@@ -82,6 +82,71 @@ namespace
 			logger::log("http", "error", "save_blob() cannot write to file: " + filename, true);
 	}
 
+	//upload support functions---------
+	std::vector<std::string_view> parse_body(auto req) {
+		std::vector<std::string_view> vec;
+		std::string_view body {req->payload};
+		body = body.substr(req->bodyStartPos);
+		const std::string delim{ "--" + req->boundary + "\r\n"};
+		const std::string end_delim{"--" + req->boundary + "--" + "\r\n"};
+		for (const auto& word : std::views::split(body, delim)) {
+			auto part {std::string_view{word}};
+			if (part.empty()) continue;
+			if (part.ends_with(end_delim))
+				part = part.substr(0, part.find(end_delim));
+			vec.push_back(part);
+		}
+		return vec;
+	}
+
+	std::vector<std::string_view> parse_part(std::string_view body) {
+		std::vector<std::string_view> vec;
+		constexpr std::string_view delim{"\r\n"};
+		for (const auto& word : std::views::split(body, delim)) {
+			auto part {std::string_view{word}};
+			if (part.empty()) continue;
+			vec.push_back(part);
+		}
+		return vec;
+	}
+
+	std::string_view extract_attribute(std::string_view part, const std::string& name) {
+		const std::string delim1 {name + "=\""};
+		const std::string delim2 {"\""};
+		if (auto pos1 {part.find(delim1)}; pos1 != std::string::npos) {
+			pos1 += delim1.size();
+			if (auto pos2 {part.find(delim2, pos1)}; pos2 != std::string::npos) 
+				return part.substr(pos1, pos2 - pos1);
+		}
+		return "";    
+	}
+
+	std::string_view get_part_content_type(std::string_view line) {
+		std::string_view marker {"Content-Type: "};
+		auto pos = line.find(marker);
+		pos += marker.size();
+		return line.substr(pos);
+	}
+
+	http::form_field get_form_field(std::vector<std::string_view> part) {
+		http::form_field f;
+		size_t idx{1};
+		f.name = extract_attribute(part[0], "name");
+		f.filename = extract_attribute(part[0], "filename");
+		if (!f.filename.empty()) {
+			f.content_type = get_part_content_type(part[1]);
+			idx = 2;
+		}
+		for (auto i = idx; i < part.size(); i++) {
+			f.data.append(part[i]);
+			if (!f.filename.empty())
+				f.data.append("\r\n");
+		}
+		return f;
+	}
+	//--------------------------
+
+
 }
 
 namespace http
@@ -563,71 +628,10 @@ namespace http
 		}
 	}
 	
-	std::vector<std::string_view> request::parse_body(std::string_view sv) {
-		std::vector<std::string_view> vec;
-		std::string_view body {sv.substr(bodyStartPos)};
-		const std::string delim{ "--" + boundary + "\r\n"};
-		const std::string end_delim{"--" + boundary + "--" + "\r\n"};
-		for (const auto& word : std::views::split(body, delim)) {
-			auto part {std::string_view{word}};
-			if (part.empty()) continue;
-			if (part.ends_with(end_delim))
-				part = part.substr(0, part.find(end_delim));
-			vec.push_back(part);
-		}
-		return vec;
-	}
-
-	std::vector<std::string_view> request::parse_part(std::string_view body) {
-		std::vector<std::string_view> vec;
-		constexpr std::string_view delim{"\r\n"};
-		for (const auto& word : std::views::split(body, delim)) {
-			auto part {std::string_view{word}};
-			if (part.empty()) continue;
-			vec.push_back(part);
-		}
-		return vec;
-	}
-
-	std::string_view request::extract_attribute(std::string_view part, const std::string& name) {
-		const std::string delim1 {name + "=\""};
-		const std::string delim2 {"\""};
-		if (auto pos1 {part.find(delim1)}; pos1 != std::string::npos) {
-			pos1 += delim1.size();
-			if (auto pos2 {part.find(delim2, pos1)}; pos2 != std::string::npos) 
-				return part.substr(pos1, pos2 - pos1);
-		}
-		return "";    
-	}
-
-	std::string_view request::get_part_content_type(std::string_view line) {
-		std::string_view marker {"Content-Type: "};
-		auto pos = line.find(marker);
-		pos += marker.size();
-		return line.substr(pos);
-	}
-
-	form_field request::get_form_field(std::vector<std::string_view> part) {
-		form_field f;
-		size_t idx{1};
-		f.name = extract_attribute(part[0], "name");
-		f.filename = extract_attribute(part[0], "filename");
-		if (!f.filename.empty()) {
-			f.content_type = get_part_content_type(part[1]);
-			idx = 2;
-		}
-		for (auto i = idx; i < part.size(); i++) {
-			f.data.append(part[i]);
-			if (!f.filename.empty())
-				f.data.append("\r\n");
-		}
-		return f;
-	}
-	
 	std::vector<form_field> request::parse_multipart() 
 	{
 		std::vector<form_field> fields;
-		for (const auto& vec {parse_body(payload)}; auto& part: vec) {
+		for (const auto& vec {parse_body(this)}; auto& part: vec) {
 			auto elems {parse_part(part)};
 			fields.push_back(get_form_field(elems));
 		}

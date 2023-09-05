@@ -233,11 +233,6 @@ namespace http
 		void parse_query_string(std::string_view qs) noexcept;	
 		
 		//upload support functions
-		std::vector<std::string_view> parse_body(std::string_view sv);
-		std::vector<std::string_view> parse_part(std::string_view body);
-		std::string_view extract_attribute(std::string_view part, const std::string& name);
-		std::string_view get_part_content_type(std::string_view line);
-		form_field get_form_field(std::vector<std::string_view> part);
 		std::vector<form_field> parse_multipart() ;	
 		
 		bool parse_headers(line_reader& lr);
