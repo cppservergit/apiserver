@@ -7,8 +7,6 @@ CC_OBJS=env.o logger.o jwt.o httputils.o email.o sql.o login.o util.o main.o
 
 apiserver: env.o logger.o jwt.o httputils.o email.o sql.o login.o util.o main.o
 	$(CC) $(CC_OPTS) $(CC_OBJS) $(CC_LIBS) -o "apiserver"
-	cp apiserver ..
-	chmod +x ../apiserver
 
 main.o: src/main.cpp src/server.h
 	$(CC) $(CC_OPTS) -I/usr/include/postgresql -DCPP_BUILD_DATE=$(DATE) -c src/main.cpp
