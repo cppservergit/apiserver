@@ -1009,13 +1009,13 @@ For the dynamic runtime instrumentation, the program was bombarded with 2000 con
 
 ## API-Server++ for ODBC
 
-There is a separate branch of this project that instead of using the native PostgreSQL driver it does use ODBC API, this way you can connect to SQL Server (ODBC driver is its native driver), Sybase or DB2.
+There is a separate branch of this project that instead of using the native PostgreSQL driver the server does use the ODBC API. This way you can connect to SQL Server, Sybase, or DB2 using their native ODBC drivers. Please note that in the case of SQL Server, its ODBC driver is the native client.
 
 ### Pre-requisites
 
 For development purposes please install these packages:
 ```
-sudo apt install g++-12 libssl-dev libpq-dev libcurl4-openssl-dev libldap-dev libldap-dev unixodbc-dev tdsodbc make -y --no-install-recommends
+sudo apt install g++-12 libssl-dev libpq-dev libcurl4-openssl-dev libldap-dev unixodbc-dev tdsodbc make -y --no-install-recommends
 ```
 This command will also install [FreeTDS](https://www.freetds.org/index.html) ODBC driver for SQL Server and Sybase.
 
