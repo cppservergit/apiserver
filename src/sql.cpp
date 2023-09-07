@@ -40,16 +40,10 @@ namespace
 		}
 
 		dbutil() = default;
-		dbutil(dbutil &&source) noexcept: m_dbconnstr{std::move(source.m_dbconnstr)}, conn{source.conn} { source.conn = nullptr; }
-		dbutil(const dbutil &source): m_dbconnstr{source.m_dbconnstr}, conn{source.conn} { }
-		dbutil& operator =(const dbutil& source) = default;
-		dbutil& operator=(dbutil&& source) noexcept
-		{
-			m_dbconnstr = std::move(source.m_dbconnstr);
-			conn = source.conn;
-			source.conn = nullptr;
-			return *this;
-		}
+		dbutil(dbutil &&source) = delete;
+		dbutil(const dbutil &source) = delete;
+		dbutil& operator =(const dbutil& source) = delete;
+		dbutil& operator=(dbutil&& source) = delete;
 		
 		inline void reset_connection() noexcept
 		{
