@@ -39,11 +39,22 @@ namespace
 				PQfinish(conn);
 		}
 
-		dbutil() = default; 
-		dbutil(dbutil &&source) = delete;
-		dbutil(const dbutil &source) = delete;
-		dbutil& operator=(const dbutil&) = delete;
-		dbutil& operator=(dbutil&& other) = delete;		
+		dbutil() = default;
+		dbutil(dbutil &&source): m_dbconnstr{std::move(source.m_dbconnstr)}, conn{source.conn} { source.conn = nullptr; }
+		dbutil(const dbutil &source): m_dbconnstr{source.m_dbconnstr}, conn{source.conn} { }
+		dbutil& operator=(const dbutil& source) 
+		{ 
+			m_dbconnstr = source.m_dbconnstr;
+			conn = source.conn; 
+			return *this;
+		};
+		dbutil& operator=(dbutil&& source)
+		{
+			m_dbconnstr = std::move(source.m_dbconnstr);
+			conn = source.conn;
+			source.conn = nullptr;
+			return *this;
+		}
 		
 		inline void reset_connection() noexcept
 		{
