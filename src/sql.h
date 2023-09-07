@@ -22,17 +22,31 @@
 #include <sstream>
 #include <iomanip>
 #include <unordered_map>
-#include <string.h>
+#include "util.h"
 #include "logger.h"
+#include "env.h"
 
 namespace sql
 {
-	void connect(const std::string& dbname, const std::string& conn_info);
+	using record    = std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>>;
+	using recordset = std::vector<record>;
+	
+	class database_exception
+	{
+		public:
+			explicit database_exception(std::string_view _msg): m_msg {_msg} {}
+			std::string what() const noexcept {
+				return m_msg;
+			}
+		private:
+            std::string m_msg;
+	};
+	
 	std::string get_json_response(const std::string& dbname, const std::string &sql, bool useDataPrefix=true, const std::string &prefixName="data");
 	std::string get_json_response(const std::string& dbname, const std::string &sql, const std::vector<std::string> &varNames, const std::string &prefixName="data");
 	void exec_sql(const std::string& dbname, const std::string& sql);
 	bool has_rows(const std::string& dbname, const std::string &sql);
-	std::unordered_map<std::string, std::string> get_record(const std::string& dbname, const std::string& sql);
+	record get_record(const std::string& dbname, const std::string& sql);
 }
 
 #endif /* SQLODBC_H_ */

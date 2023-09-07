@@ -19,9 +19,6 @@ namespace smtp
 	void mail::send() noexcept
 	{
 		
-		if (!x_request_id.empty())
-			logger::set_request_id(x_request_id);
-		
 		std::string domain {""};
 		if (auto pos = username.find("@"); pos != std::string::npos) {
 			domain = username.substr(pos);
@@ -30,11 +27,11 @@ namespace smtp
 		body.append("\r\n");
 		
 		std::vector<std::string> mail_headers {
-			std::string("Date: " + get_response_date()),
+			std::string("Date: " + http::get_response_date()),
 			"To: " + to,
 			"From: " + username,
 			"Cc: " + cc,
-			std::string("Message-ID: <" + get_uuid() + domain + ">"),
+			std::string("Message-ID: <" + http::get_uuid() + domain + ">"),
 			"Subject: " + subject
 		};
 
@@ -71,13 +68,13 @@ namespace smtp
 					curl_mime_filename(part, doc.filename.c_str());
 			}
 			
-			logger::log("email", "info", "sending email to: " + to + " with subject: " + subject, true);
+			logger::log("email", "info", "sending email to: " + to + " with subject: " + subject, true, x_request_id);
 			
 			curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
 			res = curl_easy_perform(curl);
 		 
 			if(res != CURLE_OK)
-				logger::log("email", "error", std::string(__PRETTY_FUNCTION__) + " curl_easy_perform() failed: " + std::string(curl_easy_strerror(res)), true);
+				logger::log("email", "error", "curl_easy_perform() failed: $1", {std::string(curl_easy_strerror(res))}, true, x_request_id);
 		}
 	}
 
@@ -93,31 +90,33 @@ namespace smtp
 		documents.push_back(doc);
 	}
 
-	std::string mail::get_uuid() noexcept 
+	void mail::set_to(std::string_view  _to) noexcept
 	{
-		std::random_device dev;
-		std::mt19937 rng(dev());
-		std::uniform_int_distribution<int> dist(0, 15);
-
-		const char *v = "0123456789abcdef";
-		const bool dash[] = { 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0 };
-
-		std::string res;
-		for (int i = 0; i < 16; i++) {
-			if (dash[i]) res += "-";
-			res += v[dist(rng)];
-			res += v[dist(rng)];
-		}
-		return res;
-	}
-
-	std::string mail::get_response_date() noexcept
-	{
-		std::array<char, 32> buf;
-		time_t now = time(0);
-		struct tm tm = *gmtime(&now);
-		strftime(buf.data(), buf.size(), "%a, %d %b %Y %H:%M:%S GMT", &tm);
-		return std::string(buf.data());
+		to = _to;
 	}
 	
+	void mail::set_cc(std::string_view  _cc) noexcept
+	{
+		cc = _cc;
+	}
+	
+	void mail::set_subject(std::string_view  _subject) noexcept
+	{
+		subject = _subject;
+	}
+	
+	void mail::set_body(std::string_view  _body) noexcept
+	{
+		body = _body;
+	}
+	
+	void mail::set_debug(bool _debug) noexcept
+	{
+		debug_mode = _debug;
+	}
+	
+	void mail::set_x_request_id(std::string_view  _id) noexcept
+	{
+		x_request_id = _id;
+	}
 }

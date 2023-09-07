@@ -24,15 +24,19 @@
 #include <cstring>
 #include <ctime>
 #include <array>
-#include <functional>
+#include <ranges>
+#include <iterator>
 #include <sys/socket.h>
+#include "util.h"
 #include "logger.h"
 #include "jwt.h"
+#include "email.h"
 
 namespace http
 {
 	const std::string blob_path {"/var/blobs/"};
 	
+	std::string get_uuid() noexcept;
 	std::string get_content_type(const std::string& filename) noexcept;
 	std::string get_response_date() noexcept;
 
@@ -45,7 +49,7 @@ namespace http
 			{
 				return "Invalid HTTP request input parameter: " + field_name;
 			}
-			invalid_input_exception(const std::string& _name, const std::string& _errmsg): 
+			explicit invalid_input_exception(const std::string& _name, const std::string& _errmsg): 
 				field_name{_name}, error_description{_errmsg} { }
 			auto get_field_name() const { return field_name; }
 			auto get_error_description() const { return error_description; }
@@ -57,7 +61,7 @@ namespace http
 	class login_required_exception
 	{
 		public:
-			login_required_exception(const std::string& _remote_ip, const std::string& _reason)
+			explicit login_required_exception(const std::string& _remote_ip, const std::string& _reason)
 			: m_remote_ip {_remote_ip}, m_reason(_reason) {}
 			std::string what() const noexcept {
 				return "Authentication required from IP: " + m_remote_ip + " reason: " + m_reason;
@@ -70,20 +74,21 @@ namespace http
 	class access_denied_exception
 	{
 		public:
-			access_denied_exception(const std::string& _remote_ip, const std::string& _reason)
-			: m_remote_ip {_remote_ip}, m_reason(_reason) {}
+			explicit access_denied_exception(const std::string& _user, const std::string& _remote_ip, const std::string& _reason)
+			: m_user {_user}, m_remote_ip {_remote_ip}, m_reason {_reason} {}
 			std::string what() const noexcept {
-				return "Access denied for user: " + jwt::user_get_login() + " from IP: " + m_remote_ip + " reason: " + m_reason;
+				return "Access denied for user: " + m_user + " from IP: " + m_remote_ip + " reason: " + m_reason;
 			}
 		private:
+			std::string m_user;
             std::string m_remote_ip;
-            std::string m_reason;		
+            std::string m_reason;
 	};
 
 	class method_not_allowed_exception
 	{
 		public:
-			method_not_allowed_exception(const std::string& _method): m_method {_method} {}
+			explicit method_not_allowed_exception(const std::string& _method): m_method {_method} {}
 			std::string what() const noexcept {
 				std::string error_msg{"HTTP method not allowed: " + m_method};
 				return error_msg;
@@ -95,7 +100,7 @@ namespace http
 	class resource_not_found_exception
 	{
 		public:
-			resource_not_found_exception(const std::string& _msg): m_message {_msg} {}
+			explicit resource_not_found_exception(const std::string& _msg): m_message {_msg} {}
 			std::string what() const noexcept {
 				std::string error_msg{"Resource not found: " + m_message};
 				return error_msg;
@@ -113,7 +118,7 @@ namespace http
 
 	struct input_rule {
 		public:
-			input_rule(std::string n, field_type d, bool r): name{n}, datatype{d}, required{r} {  }
+			input_rule(const std::string& n, field_type d, bool r) noexcept: name{n}, datatype{d}, required{r} {  }
 			auto get_name() const {return name;}
 			auto get_type() const {return datatype;}
 			auto get_required() const {return required;}
@@ -133,19 +138,19 @@ namespace http
 
 	struct response_stream {
 	  public:	
-		response_stream(int size);
+		explicit response_stream(int size) noexcept;
 		response_stream();
-		response_stream& operator <<(std::string data);
+		response_stream& operator <<(std::string_view data);
 		response_stream& operator <<(const char* data);
 		response_stream& operator <<(size_t data);
-		void set_body(const std::string& body, const std::string& content_type = "application/json", int max_age = 0);
-		void set_content_disposition(const std::string& disposition);
-		void set_origin(const std::string& origin);
-		std::string_view view() noexcept;
-		size_t size() noexcept;
-		const char* c_str() noexcept;
+		void set_body(std::string_view body, std::string_view content_type = "application/json", int max_age = 0);
+		void set_content_disposition(std::string_view disposition);
+		void set_origin(std::string_view origin);
+		std::string_view view() const noexcept;
+		size_t size() const noexcept;
+		const char* c_str() const noexcept;
 		void append(const char* data, size_t len) noexcept;
-		const char* data() noexcept;
+		const char* data() const noexcept;
 		void clear() noexcept;
 		bool write(int fd) noexcept; 
 	  private:
@@ -154,53 +159,90 @@ namespace http
 		std::string _content_disposition{""};
 		std::string _origin{""};
 	};
+		
+	struct line_reader {
+	  public:
+		explicit line_reader(std::string_view str);
+		bool eof() const noexcept;
+		std::string_view getline();
+		
+	  private:
+		bool _eof{false};
+		std::string_view buffer;
+		int pos{0};
+		const std::string line_sep{"\r\n"};
+	};	
 	
 	struct request {
 	  public:
 		int epoll_fd;
-		int fd; //socket fd
+		int fd;
+		std::string remote_ip;
 		size_t bodyStartPos{0};
 		size_t contentLength{0};
 		bool isMultipart{false};
-		std::string method{""};
-		std::string queryString{""};
-		std::string path{""};
-		std::string boundary{""};
-		std::string cookie{""};
-		std::string token{""};
+		std::string method;
+		std::string queryString;
+		std::string path;
+		std::string boundary;
+		std::string token;
 		int errcode{0};
-		std::string errmsg{""};
-		std::string remote_ip;
+		std::string errmsg;
 		std::string origin{"null"};
 		std::string payload;
-		std::unordered_map<std::string, std::string> headers;
-		std::unordered_map<std::string, std::string> params;
+		std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>> headers;
+		std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>> params;
 		std::vector<input_rule> input_rules;
+		jwt::user_info user_info;
 		response_stream response;
-		request();
-		request(int epollfd, int fdes, const char* ip);
-		~request();
+		
+		explicit request(int epollfd, int fdes, const char* ip): epoll_fd{epollfd}, fd {fdes}, remote_ip {ip}
+		{
+			headers.reserve(10);
+			params.reserve(10);
+			payload.reserve(8191);
+		}
+
+		request() = default;
 		void clear();
 		void parse();
 		bool eof();
 		std::string get_header(const std::string& name) const;
 		std::string get_param(const std::string& name) const;
-		void enforce(verb v);
+		void enforce(verb v) const;
 		void enforce(const std::vector<input_rule>& rules);
-		void enforce(const std::string& id, const std::string& error_description, std::function<bool()> fn);
-		std::string get_sql(std::string sql, const std::string& userlogin = "");
+		
+		template<class FN>
+		void enforce(const std::string& id, const std::string& error_description, FN fn) const
+		{
+			if (!fn())
+				throw invalid_input_exception(id, error_description);
+		}
+		
+		std::string get_sql(std::string sql);
 		void check_security(const std::vector<std::string>& roles = {});
-		std::string get_mail_body(const std::string& template_file, const std::string& userlogin = "Undefined");
-		std::string replace_params(const std::string& template_msg);
+		void log(std::string_view source, std::string_view level, std::string msg) noexcept;
+		
+		void send_mail(const std::string& to, const std::string& subject, const std::string& body) noexcept;
+		void send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body) noexcept;
+		void send_mail(const std::string& to, const std::string& cc, 
+			const std::string& subject, const std::string& body, const std::string& attachment, const std::string& attachment_filename) noexcept;
+		
 	  private:
-		std::string_view get_cookie(std::string_view cookieHdr);
-		std::string lowercase(std::string s) noexcept;	
-		std::string decode_param(const std::string &value) noexcept;
+		void test_field(const http::input_rule& r, std::string& value);
+		std::string decode_param(std::string_view value) const noexcept;
+		void parse_param(std::string_view param) noexcept; 
 		void parse_query_string(std::string_view qs) noexcept;	
-		std::string get_part_content_type(std::string value);
-		std::pair<std::string, std::string> get_part_field(std::string value);
-		std::vector<form_field> parse_multipart();
-	};	
+		bool parse_headers(line_reader& lr);
+		bool parse_read_boundary(std::string_view value);
+		std::pair<std::string, std::string> split_header_line(std::string_view line);
+		bool set_content_length(std::string_view value);
+		bool add_header(const std::string& header, const std::string& value);
+		bool parse_uri(line_reader& lr);
+		void set_parse_error(std::string_view msg);
+		bool validate_header(std::string_view header, std::string_view value);
+		void parse_form();
+	};
 }
 
 #endif /* HTTPUTILS_H_ */

@@ -1,25 +1,10 @@
 #include "logger.h"
 
-namespace
-{
-	thread_local std::string request_id{""};
-}
-
 namespace logger 
 {
-	void set_request_id(const std::string& id) noexcept
+	void log(std::string_view source, std::string_view level, std::string msg, bool add_thread_id, std::string_view x_request_id) noexcept
 	{
-		request_id = id;
-	}
-	
-	std::string get_request_id() noexcept
-	{
-		return request_id;
-	}
-	
-	void log(const std::string& source, const std::string& level, std::string msg, bool add_thread_id) noexcept
-	{
-		std::transform( msg.begin(), msg.end(), msg.begin(), 
+		std::ranges::transform(msg, msg.begin(), 
 			[](unsigned char c)
 			{
 				if (c == '\n') c = ' ';
@@ -30,19 +15,19 @@ namespace logger
 			}
 		);
 		
-		std::string buffer{""}; buffer.reserve(1023);
-		buffer.append("{\"source\":\"" + source + "\"," + "\"level\":\"" + level + "\",\"msg\":\"" + msg + "\",");
+		std::string buffer{""};
+		buffer.reserve(1023);
+		buffer.append(R"({"source":")").append(source).append(R"(",)").append(R"("level":")").append(level).append(R"(","msg":")").append(msg).append(R"(",)");
 		
 		if (add_thread_id) {
-			buffer.append("\"thread\":\"" + std::to_string(pthread_self()) + "\",");
-			if (!request_id.empty())
-				buffer.append("\"x-request-id\":\"" + request_id + "\",");
+			buffer.append(R"("thread":")").append(std::to_string(pthread_self())).append(R"(",)");
+			if (!x_request_id.empty())
+				buffer.append(R"("x-request-id":")").append(x_request_id).append(R"(",)");
 		}
 		
 		buffer.pop_back();
 		buffer.append("}\n");
 		std::clog << buffer;
 	}
-
 }
 

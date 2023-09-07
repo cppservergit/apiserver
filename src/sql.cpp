@@ -4,30 +4,20 @@ namespace
 {
 	constexpr int max_retries {3};
 	const std::string LOGGER_SRC {"sql-odbc"};
-	thread_local std::string m_sqlstate{""};
-
-	using record    = std::unordered_map<std::string, std::string>;
-	using recordset = std::vector<record>;
-
-	std::string get_error_msg(SQLHENV henv, SQLHDBC hdbc, SQLHSTMT hstmt, const std::string& sql="") 
+	
+	std::pair<std::string, std::string> get_error_msg(SQLHENV henv, SQLHDBC hdbc, SQLHSTMT hstmt) noexcept
 	{
 	    unsigned char szSQLSTATE[10];
 	    SDWORD nErr;
 	    unsigned char msg[SQL_MAX_MESSAGE_LENGTH + 1];
 	    SWORD cbmsg;
-	    std::stringstream errMsg;
 	    SQLError(henv, hdbc, hstmt, szSQLSTATE, &nErr, msg, sizeof(msg), &cbmsg);
-		const std::string sqlState( reinterpret_cast< char const* >(szSQLSTATE) );
-		const std::string sqlErrorMsg( reinterpret_cast< char const* >(msg) );
-		errMsg << sqlState << " " << sqlErrorMsg; 
-		if (!sql.empty()) 
-			errMsg << " SQL: " << sql;
-		m_sqlstate = sqlState;
-		return errMsg.str();
+		const std::string sqlState {reinterpret_cast< char const* >(szSQLSTATE)};
+		const std::string sqlErrorMsg {reinterpret_cast< char const* >(msg)};
+		return std::make_pair(sqlErrorMsg, sqlState);
 	}
 
 	struct col_info {
-		
 		std::string colname;
 		SQLSMALLINT dataType{0};
 		SQLLEN dataBufferSize{0};
@@ -35,13 +25,12 @@ namespace
 		std::vector<SQLCHAR> data;
 
 		col_info(std::string _colname, SQLSMALLINT _dataType, SQLLEN _dataBufferSize ):
-			colname{ _colname },
-			dataType{ _dataType },
-			dataBufferSize{ _dataBufferSize }
+			colname{_colname},
+			dataType{_dataType},
+			dataBufferSize{_dataBufferSize}
 		{
 			data.resize(dataBufferSize);
 		};
-		
 	};
 
 	inline std::vector<col_info> bind_cols(SQLHSTMT hstmt, SQLSMALLINT& numCols) {
@@ -72,22 +61,23 @@ namespace
 		SQLHDBC hdbc = SQL_NULL_HDBC;
 		SQLHSTMT hstmt = SQL_NULL_HSTMT;
 				
-		dbutil() 
-		{
-			logger::log(LOGGER_SRC, "debug", "empty constructor invoked", true);
-		}
+		dbutil() = default;
+		dbutil(dbutil &&source) = delete;
+		dbutil(const dbutil &source) = delete;
+		dbutil& operator =(const dbutil& source) = delete;
+		dbutil& operator=(dbutil&& source) = delete;
 		
-		dbutil(const std::string& conn_info): m_dbconnstr{conn_info}
+		explicit dbutil(const std::string& conn_info) noexcept: m_dbconnstr{conn_info}
 		{
 			RETCODE rc {SQL_SUCCESS};
 			rc = SQLAllocHandle ( SQL_HANDLE_ENV, SQL_NULL_HANDLE, &henv );
 			if ( rc != SQL_SUCCESS ) {
-				logger::log(LOGGER_SRC, "error", std::string(__FUNCTION__) + " SQLAllocHandle failed", true);
+				logger::log(LOGGER_SRC, "error", "SQLAllocHandle failed", true);
 			}
 
 			rc = SQLSetEnvAttr(henv, SQL_ATTR_ODBC_VERSION, (SQLPOINTER)SQL_OV_ODBC3 , 0 );
 			if ( rc != SQL_SUCCESS ) {
-				logger::log(LOGGER_SRC, "error", std::string(__FUNCTION__) + " SQLSetEnvAttr failed to set ODBC version", true);
+				logger::log(LOGGER_SRC, "error", "SQLSetEnvAttr failed to set ODBC version", true);
 			}
 
 			SQLCHAR* dsn = (SQLCHAR*)m_dbconnstr.c_str();
@@ -96,21 +86,11 @@ namespace
 		
 			rc = SQLDriverConnect(hdbc, NULL, dsn, SQL_NTS, NULL, 0, &bufflen, SQL_DRIVER_NOPROMPT);
 			if (rc!=SQL_SUCCESS && rc!=SQL_SUCCESS_WITH_INFO) {
-				logger::log(LOGGER_SRC, "error", std::string(__FUNCTION__) + " SQLDriverConnect failed: " + get_error_msg(henv, hdbc, hstmt), true);
+				auto [error, sqlstate] {get_error_msg(henv, hdbc, hstmt)};
+				logger::log(LOGGER_SRC, "error", "SQLDriverConnect failed: $1", {error}, true);
 			}
 
 			rc = SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hstmt);
-		}
-		
-		dbutil(dbutil &&source) : m_dbconnstr{source.m_dbconnstr}, henv{source.henv}, hdbc{source.hdbc}, hstmt{source.hstmt}
-		{
-			source.henv = 0;
-			source.hdbc = 0;
-			source.hstmt = 0;
-		}
-
-		dbutil(const dbutil &source) : m_dbconnstr{source.m_dbconnstr}, henv{source.henv}, hdbc{source.hdbc}, hstmt{source.hstmt}
-		{
 		}
 		
 		~dbutil() {
@@ -133,12 +113,12 @@ namespace
 			RETCODE rc {SQL_SUCCESS};
 			rc = SQLAllocHandle ( SQL_HANDLE_ENV, SQL_NULL_HANDLE, &henv );
 			if ( rc != SQL_SUCCESS ) {
-				logger::log(LOGGER_SRC, "error", std::string(__FUNCTION__) + " SQLAllocHandle failed", true);
+				logger::log(LOGGER_SRC, "error", "SQLAllocHandle failed", true);
 			}
 
 			rc = SQLSetEnvAttr(henv, SQL_ATTR_ODBC_VERSION, (SQLPOINTER)SQL_OV_ODBC3 , 0 );
 			if ( rc != SQL_SUCCESS ) {
-				logger::log(LOGGER_SRC, "error", std::string(__FUNCTION__) + " SQLSetEnvAttr failed to set ODBC version", true);
+				logger::log(LOGGER_SRC, "error", "SQLSetEnvAttr failed to set ODBC version", true);
 			}
 
 			SQLCHAR* dsn = (SQLCHAR*)m_dbconnstr.c_str();
@@ -147,7 +127,8 @@ namespace
 		
 			rc = SQLDriverConnect(hdbc, NULL, dsn, SQL_NTS, NULL, 0, &bufflen, SQL_DRIVER_NOPROMPT);
 			if (rc!=SQL_SUCCESS && rc!=SQL_SUCCESS_WITH_INFO) {
-				logger::log(LOGGER_SRC, "error", std::string(__FUNCTION__) + " SQLDriverConnect failed: " + get_error_msg(henv, hdbc, hstmt), true);
+				auto [error, sqlstate] {get_error_msg(henv, hdbc, hstmt)};
+				logger::log(LOGGER_SRC, "error", "SQLDriverConnect failed: $1", {error}, true);
 			}
 
 			rc = SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hstmt);				
@@ -155,23 +136,23 @@ namespace
 	
 	};
 
-	thread_local  std::unordered_map<std::string, dbutil> dbconns;
-
-	recordset get_recordset(SQLHSTMT hstmt) 
+	sql::recordset get_recordset(SQLHSTMT hstmt) 
 	{
-		recordset rs;
+		sql::recordset rs;
 		SQLSMALLINT numCols ;
 		SQLNumResultCols( hstmt, &numCols );
 		if (numCols>0) {
 			auto cols = bind_cols( hstmt, numCols );
 			while ( SQLFetch( hstmt )!=SQL_NO_DATA ) {
-				record rec;
+				sql::record rec;
 				rec.reserve( numCols );
 				for ( auto& col: cols ) {
 					if (col.dataSize > 0) {
-						rec[col.colname] = reinterpret_cast<char*>(&col.data[0]);
+						rec.try_emplace(col.colname, reinterpret_cast<char*>(&col.data[0]));
+						//rec[col.colname] = reinterpret_cast<char*>(&col.data[0]);
 					} else {
-						rec[col.colname] = "";
+						rec.try_emplace(col.colname, "");
+						//rec[col.colname] = "";
 					}
 				}
 				rs.push_back(rec);
@@ -210,145 +191,108 @@ namespace
 	    json.append("]");
 	}
 
+	dbutil& getdb(const std::string& dbname, bool reset = false)
+	{
+		thread_local std::unordered_map<std::string, dbutil, util::string_hash, std::equal_to<>> dbconns;
+		if (!dbconns.contains(dbname)) {
+			std::string connstr{env::get_str(dbname)};
+			if (!connstr.empty()) {
+				auto [iter, success] = dbconns.try_emplace(dbname, connstr);
+				return iter->second;
+			} else {
+				throw sql::database_exception(logger::format("getdb() -> invalid dbname: $1", {dbname}));
+			}
+		} else {
+			if (reset)
+				dbconns[dbname].reset_connection();
+			return dbconns[dbname];
+		}
+	}
+	
+	inline void retry(RETCODE rc, const std::string& dbname, dbutil& db, int& retries, const std::string& sql)
+	{
+		auto [error, sqlstate] {get_error_msg(db.henv, db.hdbc, db.hstmt)};
+		if (sqlstate == "01000" || sqlstate == "08S01" || rc == SQL_INVALID_HANDLE) {
+			if (retries == max_retries) {
+				throw sql::database_exception(logger::format("retry() -> cannot connect to database:: $1", {dbname}));
+			} else {
+				retries++;
+				getdb(dbname, true);
+			}
+		} else {
+			throw sql::database_exception(logger::format("db_exec() $1 -> sql: $2", {error, sql}));
+		}
+	}	
+	
+	template<typename T, class FN>
+	T db_exec(const std::string& dbname, const std::string& sql, FN func) 
+	{
+		SQLCHAR* sqlcmd = (SQLCHAR*)sql.c_str();
+		RETCODE rc {SQL_SUCCESS};
+		int retries {0};
+
+		while (true) {
+			auto& db = getdb(dbname);
+			rc = SQLExecDirect(db.hstmt, sqlcmd, SQL_NTS);
+			if (rc != SQL_SUCCESS  && rc != SQL_NO_DATA)
+				retry(rc, dbname, db, retries, sql);
+			else 
+				return func(db.hstmt);
+		}
+	}	
+	
 }
 
 namespace sql 
 {
-	void connect(const std::string& dbname, const std::string& conn_info)
-	{
-		if (!dbconns.contains(dbname)) { 
-			dbconns.insert({dbname, dbutil(conn_info)});
-		} else {
-			std::string error{std::string(__FUNCTION__) + " duplicated dbname: " + dbname};
-			throw std::runtime_error(error.c_str());
-		}
-	}
-
-	dbutil& getdb(const std::string& dbname)
-	{
-		if (!dbconns.contains(dbname)) {
-			std::string error{std::string(__FUNCTION__) + " invalid dbname: " + dbname};
-			throw std::runtime_error(error.c_str());
-		}
-		return dbconns[dbname];
-	}	
-	
 	bool has_rows(const std::string& dbname, const std::string& sql)
 	{
-		recordset rs;
-		SQLCHAR* sqlcmd = (SQLCHAR*)sql.c_str();
-		dbutil& db{getdb(dbname)};
-		RETCODE rc {SQL_SUCCESS};
-		int retries {0};
-		m_sqlstate = "";
-		
-	retry:		
-		rc = SQLExecDirect(db.hstmt, sqlcmd, SQL_NTS);
-		if (rc != SQL_SUCCESS) {
-			std::string error{std::string(__FUNCTION__) + + " " + get_error_msg(db.henv, db.hdbc, db.hstmt, sql)};
-			if (retries < max_retries && (m_sqlstate == "01000" || m_sqlstate == "08S01" || rc == SQL_INVALID_HANDLE)) {
-				++retries;
-				db.reset_connection();
-				goto retry;
-			}			
-			throw std::runtime_error(error.c_str());				
-		} else {
-			rs = get_recordset(db.hstmt);
-		}
-
-		SQLFreeStmt(db.hstmt, SQL_CLOSE);
-		SQLFreeStmt(db.hstmt, SQL_UNBIND);
-		return (rs.size() > 0);
+		return db_exec<bool>(dbname, sql, [](SQLHSTMT hstmt) {
+			recordset rs {get_recordset(hstmt)};
+			SQLFreeStmt(hstmt, SQL_CLOSE);
+			SQLFreeStmt(hstmt, SQL_UNBIND);
+			return (!rs.empty());
+		});
 	}
 
-	std::unordered_map<std::string, std::string> get_record(const std::string& dbname, const std::string& sql)
+	record get_record(const std::string& dbname, const std::string& sql)
 	{
-		recordset rs;
-		record rec;
-		SQLCHAR* sqlcmd = (SQLCHAR*)sql.c_str();
-		dbutil& db{getdb(dbname)};
-		RETCODE rc {SQL_SUCCESS};
-		int retries {0};
-		m_sqlstate = "";
-		
-	retry:		
-		rc = SQLExecDirect(db.hstmt, sqlcmd, SQL_NTS);
-
-		if (rc != SQL_SUCCESS) {
-			std::string error{std::string(__FUNCTION__) + + " " + get_error_msg(db.henv, db.hdbc, db.hstmt, sql)};
-			if (retries < max_retries && (m_sqlstate == "01000" || m_sqlstate == "08S01" || rc == SQL_INVALID_HANDLE)) {
-				++retries;
-				db.reset_connection();
-				goto retry;
-			}			
-			throw std::runtime_error(error.c_str());
-		} else {
-			rs = get_recordset(db.hstmt);
-			if (rs.size())
+		return db_exec<record>(dbname, sql, [](SQLHSTMT hstmt) {
+			record rec;
+			recordset rs {get_recordset(hstmt)};
+			SQLFreeStmt(hstmt, SQL_CLOSE);
+			SQLFreeStmt(hstmt, SQL_UNBIND);
+			if (!rs.empty())
 				rec = rs[0];
-		}
-
-		SQLFreeStmt(db.hstmt, SQL_CLOSE);
-		SQLFreeStmt(db.hstmt, SQL_UNBIND);
-		return rec;
+			return rec;
+		});
 	}
 	
 	std::string get_json_response(const std::string& dbname, const std::string &sql, bool useDataPrefix, const std::string &prefixName)
 	{
-		std::string json; json.reserve(16383);
-		dbutil& db{getdb(dbname)};
-		RETCODE rc{SQL_SUCCESS};		
-		SQLCHAR* sqlcmd = (SQLCHAR*)sql.c_str();
-		int retries {0};
-		m_sqlstate = "";
-		
-	retry:	
-		rc = SQLExecDirect(db.hstmt, sqlcmd, SQL_NTS);
-		if (rc != SQL_SUCCESS) {
-			std::string error{std::string(__FUNCTION__) + + " " + get_error_msg(db.henv, db.hdbc, db.hstmt, sql)};
-			if (retries < max_retries && (m_sqlstate == "01000" || m_sqlstate == "08S01" || rc == SQL_INVALID_HANDLE)) {
-				++retries;
-				db.reset_connection();
-				goto retry;
-			}
-			throw std::runtime_error(error.c_str());
-		} else {
+		return db_exec<std::string>(dbname, sql, [useDataPrefix, &prefixName](SQLHSTMT hstmt) {
+			std::string json; 
+			json.reserve(16383);
 			if (useDataPrefix) {
 				json.append( R"({"status":"OK",)" );
 				json.append("\"");
 				json.append(prefixName);
 				json.append("\":");
 			}
-			get_json_array(db.hstmt, json);
+			get_json_array(hstmt, json);
 			if (useDataPrefix)
-				json.append("}");
-		}
-
-		SQLFreeStmt(db.hstmt, SQL_CLOSE);
-		SQLFreeStmt(db.hstmt, SQL_UNBIND);
-		return json;
+				json.append("}");			
+			SQLFreeStmt(hstmt, SQL_CLOSE);
+			SQLFreeStmt(hstmt, SQL_UNBIND);
+			return json;
+		});
 	}
 
 	std::string get_json_response(const std::string& dbname, const std::string &sql, const std::vector<std::string> &varNames, const std::string &prefixName) 
 	{
-		std::string json; json.reserve(16383);
-		dbutil& db{getdb(dbname)};
-		RETCODE rc{SQL_SUCCESS};		
-		SQLCHAR* sqlcmd = (SQLCHAR*)sql.c_str();
-		int retries {0};
-		m_sqlstate = "";
-		
-	retry:		
-		rc = SQLExecDirect(db.hstmt, sqlcmd, SQL_NTS);
-		if (rc != SQL_SUCCESS) {
-			std::string error{std::string(__FUNCTION__) + + " " + get_error_msg(db.henv, db.hdbc, db.hstmt, sql)};
-			if (retries < max_retries && (m_sqlstate == "01000" || m_sqlstate == "08S01" || rc == SQL_INVALID_HANDLE)) {
-				++retries;
-				db.reset_connection();
-				goto retry;
-			}
-			throw std::runtime_error(error.c_str());
-		} else {
+		return db_exec<std::string>(dbname, sql, [&varNames, &prefixName](SQLHSTMT hstmt) {
+			std::string json; 
+			json.reserve(16383);
 			int rowsetCounter{0};
 			json.append(R"({"status":"OK",)");
 			json.append("\"");
@@ -358,40 +302,23 @@ namespace sql
 				json.append( "\"");
 				json.append(varNames[rowsetCounter]);
 				json.append("\":");
-				get_json_array(db.hstmt, json);
+				get_json_array(hstmt, json);
 				json.append(",");
 				++rowsetCounter;
-			} while (SQLMoreResults(db.hstmt) == SQL_SUCCESS);
+			} while (SQLMoreResults(hstmt) == SQL_SUCCESS);
 			json.pop_back(); //remove last coma ","
 			json.append("}}");
-		}
-
-		SQLFreeStmt(db.hstmt, SQL_CLOSE);
-		SQLFreeStmt(db.hstmt, SQL_UNBIND);
-		return json;
+			SQLFreeStmt(hstmt, SQL_CLOSE);
+			SQLFreeStmt(hstmt, SQL_UNBIND);
+			return json;
+		});
 	}
 	
 	void exec_sql(const std::string& dbname, const std::string& sql)
 	{
-		dbutil& db{getdb(dbname)};
-		RETCODE rc{SQL_SUCCESS};		
-		SQLCHAR* sqlcmd = (SQLCHAR*)sql.c_str();
-		int retries {0};
-		m_sqlstate = "";
-		
-	retry:	
-		rc = SQLExecDirect(db.hstmt, sqlcmd, SQL_NTS);
-		if (rc != SQL_SUCCESS && rc!=SQL_NO_DATA) {
-			std::string error{std::string(__FUNCTION__) + + " " + get_error_msg(db.henv, db.hdbc, db.hstmt, sql)};
-			if (retries < max_retries && (m_sqlstate == "01000" || m_sqlstate == "08S01" || rc == SQL_INVALID_HANDLE)) {
-				++retries;
-				db.reset_connection();
-				goto retry;
-			}
-			throw std::runtime_error(error.c_str());
-		}
-
-		SQLFreeStmt(db.hstmt, SQL_CLOSE);
+		return db_exec<void>(dbname, sql, [](SQLHSTMT hstmt) {
+				SQLFreeStmt(hstmt, SQL_CLOSE);
+		});
 	}
 }
 
