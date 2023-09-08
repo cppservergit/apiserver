@@ -37,8 +37,7 @@ namespace logger
 	template<typename T>
 	void log(std::string_view source, std::string_view level, std::string msg, const std::initializer_list<T>& values, bool add_thread_id = false, std::string_view x_request_id = "") noexcept
 	{
-		msg = format(msg, values);
-		log(source, level, msg, add_thread_id, x_request_id);
+		log(source, level, format(msg, values), add_thread_id, x_request_id);
 	}
 	
 }

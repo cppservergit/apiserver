@@ -726,9 +726,7 @@ namespace http
 
 	void request::log(std::string_view source, std::string_view level, std::string msg) noexcept
 	{
-		auto traceid {get_header("x-request-id")};
-		msg = replace_params(this, msg);
-		logger::log(source, level, msg, true, traceid);
+		logger::log(source, level, replace_params(this, msg), true, get_header("x-request-id"));
 	}
 
 	void request::send_mail(const std::string& to, const std::string& subject, const std::string& body) noexcept
