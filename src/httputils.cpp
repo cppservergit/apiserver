@@ -724,7 +724,7 @@ namespace http
 		}
 	}
 
-	void request::log(std::string_view source, std::string_view level, std::string msg) noexcept
+	void request::log(std::string_view source, std::string_view level, const std::string& msg) noexcept
 	{
 		logger::log(source, level, replace_params(this, msg), true, get_header("x-request-id"));
 	}
