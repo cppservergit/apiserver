@@ -221,7 +221,7 @@ namespace http
 		
 		std::string get_sql(std::string sql);
 		void check_security(const std::vector<std::string>& roles = {});
-		void log(std::string_view source, std::string_view level, std::string msg) noexcept;
+		void log(std::string_view source, std::string_view level, const std::string& msg) noexcept;
 		
 		void send_mail(const std::string& to, const std::string& subject, const std::string& body) noexcept;
 		void send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body) noexcept;
