@@ -45,12 +45,16 @@ API-Server++ was designed to be run as a container on Kubernetes, with a statele
 
 It does use the native PostgreSQL client C API `libpq` for maximum speed, as well as `libcurl` for secure email and openssl v3 for JWT signatures. It expects a JSON response from queries returning data, which is very easy to do using PostgreSQL functions.
 
-![webapi helloworld](https://github.com/cppservergit/apiserver/assets/126841556/45dedf2a-4cce-466f-a99b-6d378b7dcb5c)
+![webapi helloworld](https://github.com/cppservergit/apiserver/assets/126841556/40fcc7fb-533e-429e-aea0-d87923f58a01)
 
 
 ## Requirements
 
-The test environment is Ubuntu 22.04 with GCC 12.3, we used Canonical's Multipass VMs on Windows 10 Pro, it's a very agile tool for managing lightweight VMs on Windows.
+The test environment is Ubuntu 22.04 with GCC 12.3, We used Canonical's Multipass VMs on Windows 10 Pro, it's a very agile tool for managing lightweight VMs on Windows, you can create an Unuto 22.04 VM using a command like this, with very few resources:
+```
+multipass launch -n testvm -c 4 -m 2g -d 6g
+```
+If you are not going to update the whole operating system then you can use `-d 4g`, only 4GB of disk.
 
 Update Ubuntu package list:
 ```
@@ -67,7 +71,7 @@ Optionally, you can upgrade the rest of the operating system, it may take some m
 sudo apt upgrade -y
 ```
 
-__Note__: You can use GCC-13 too if you have it installed, for Ubuntu 23.04 and greater you can use "apt install g++" instead of "g++-12". In any case, you will have to edit Makefile to change the compiler name.
+__Note__: You can use GCC-13 too if you have it installed, for Ubuntu 23.04 you can use "apt install g++-13". You will have to edit Makefile to change the compiler name.
 
 ### PostgreSQL testdb setup
 
