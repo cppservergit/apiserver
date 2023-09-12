@@ -63,7 +63,7 @@ sudo apt update
 
 Install required packages:
 ```
-sudo apt install g++-12 libssl-dev libpq-dev libcurl4-openssl-dev libldap-dev make -y --no-install-recommends
+sudo apt install g++-12 libssl-dev libpq-dev libcurl4-openssl-dev uuid-dev libldap-dev make -y --no-install-recommends
 ```
 
 Optionally, you can upgrade the rest of the operating system, it may take some minutes and require a restart of the VM:
@@ -131,7 +131,7 @@ g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march
 g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -c src/login.cpp
 g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -DCPP_BUILD_DATE=20230807 -c src/server.cpp
 g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -c src/main.cpp
-g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel env.o logger.o jwt.o httputils.o sql.o login.o server.o main.o -lpq -lcurl -lcrypto -o "apiserver"
+g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel env.o logger.o jwt.o httputils.o sql.o login.o server.o main.o -lpq -lcurl -lcrypto -luuid -o "apiserver"
 ```
 
 ## Run API-Server++
