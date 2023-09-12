@@ -207,24 +207,16 @@ namespace
 
 namespace http
 {
-	std::string get_uuid() noexcept 
+	inline std::string get_uuid() noexcept 
 	{
-		std::random_device r;
-		std::default_random_engine eng{r()};
-		std::uniform_int_distribution dist{0, 15};
-		constexpr auto v {"0123456789abcdef"};
-		constexpr std::array<bool, 16> dash { false, false, false, false, true, false, true, false, true, false, true, false, false, false, false, false };
-
-		std::string res;
-		for (const auto& c: dash) {
-			if (c) res += "-";
-			res += v[dist(eng)];
-			res += v[dist(eng)];
-		}
-		return res;
+		std::array<unsigned char, 16> out;
+		uuid_generate(out.data());
+		std::array<char, 37> uuid;
+		uuid_unparse(out.data(), uuid.data());
+		return std::string(uuid.data());
 	}
 
-	std::string get_response_date() noexcept
+	inline std::string get_response_date() noexcept
 	{
 		std::array<char, 64> buf;
 		auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
