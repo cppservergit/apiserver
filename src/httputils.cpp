@@ -218,12 +218,11 @@ namespace http
 
 	inline std::string get_response_date() noexcept
 	{
-		std::array<char, 64> buf;
 		auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 		std::tm tm{};
-		gmtime_r(&now, &tm);
-		std::strftime(buf.data(), buf.size(), "%a, %d %b %Y %H:%M:%S GMT", &tm);
-		return std::string(buf.data());		
+		std::ostringstream s;
+		s << std::put_time(gmtime_r(&now, &tm), "%a, %d %b %Y %H:%M:%S GMT");		
+		return s.str();
 	}
 
 	line_reader::line_reader(std::string_view str) : buffer{str} { }
