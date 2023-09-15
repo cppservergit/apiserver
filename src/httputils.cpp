@@ -256,7 +256,7 @@ namespace http
 		_buffer.append("Content-Type: ").append(content_type).append("\r\n");
 		_buffer.append("Date: ").append(get_response_date()).append("\r\n");
 		_buffer.append("Keep-Alive: timeout=60, max=25\r\n");
-		_buffer.append("Access-Control-Allow-Origin: " + _origin + "\r\n");
+		_buffer.append("Access-Control-Allow-Origin: ").append(_origin).append("\r\n");
 		_buffer.append("Access-Control-Expose-Headers: content-disposition\r\n");
 		_buffer.append("Strict-Transport-Security: max-age=31536000; includeSubDomains; preload;\r\n");
 		_buffer.append("X-Frame-Options: SAMEORIGIN\r\n");
@@ -626,17 +626,17 @@ namespace http
 			return "";
 	}
 
-	//this was coded this way (while instead of for loop) to be compliant with Sonar rule cpp:S886
+	//using while-loop and iterator to be compliant with Sonar rule cpp:S886
 	std::string request::decode_param(std::string_view encoded_string) const noexcept
 	{
 		std::string decoded_string;
+		decoded_string.reserve(63);
 		auto it {std::begin(encoded_string)};
 		auto end {std::end(encoded_string)};
 		while (it != end) {
-			if (*it == '%') {
-				const char hex_char1 = *std::next(it, 1);
-				const char hex_char2 = *std::next(it, 2);
-				decoded_string += static_cast<char>(std::strtol(std::string({hex_char1, hex_char2}).c_str(), nullptr, 16));
+			if (*it == '%' && it + 2 < end) {
+                const std::array<char, 3> str {*std::next(it, 1), *std::next(it, 2), 0};
+                decoded_string += static_cast<char>(std::strtol(str.data(), nullptr, 16));
 				std::advance(it, 3);
 			} else {
 				decoded_string += *it;
