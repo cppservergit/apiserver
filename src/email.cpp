@@ -22,12 +22,6 @@ namespace smtp
 			"Subject: " + subject
 		};
 
-		curl_easy_setopt(curl, CURLOPT_USERNAME, username.c_str());
-		curl_easy_setopt(curl, CURLOPT_PASSWORD, password.c_str());
-		curl_easy_setopt(curl, CURLOPT_URL, server_url.c_str());
-		if (server_url.ends_with(":587"))
-			curl_easy_setopt(curl, CURLOPT_USE_SSL, (long)CURLUSESSL_ALL);
-		curl_easy_setopt(curl, CURLOPT_MAIL_FROM, username.c_str());
 		recipients = curl_slist_append(recipients, to.c_str());
 		if (!cc.empty())
 			recipients = curl_slist_append(recipients, cc.c_str());
@@ -58,6 +52,12 @@ namespace smtp
 	{
 		curl = curl_easy_init();
 		if (curl) {
+			curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
+			curl_easy_setopt(curl, CURLOPT_USERNAME, username.c_str());
+			curl_easy_setopt(curl, CURLOPT_PASSWORD, password.c_str());
+			curl_easy_setopt(curl, CURLOPT_URL, server_url.c_str());
+			curl_easy_setopt(curl, CURLOPT_MAIL_FROM, username.c_str());
+			
 			if (debug_mode)
 				curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
