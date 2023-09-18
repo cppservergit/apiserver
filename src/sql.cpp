@@ -34,36 +34,13 @@ namespace
 				logger::log(LOGGER_SRC, "error", "dbutil() -> $1", {get_error(conn)}, true);
 		}
 
-		~dbutil() {
+		void close() noexcept
+		{
 			if (conn) 
 				PQfinish(conn);
 		}
 
 		dbutil() = default;
-
-		dbutil(dbutil &&source) noexcept: m_dbconnstr {std::move(source.m_dbconnstr)}, conn{source.conn} 
-		{ 
-			source.conn = nullptr; 
-		}
-		dbutil& operator=(dbutil&& source) noexcept
-		{
-			m_dbconnstr = std::move(source.m_dbconnstr);
-			conn = source.conn;
-			source.conn = nullptr; 
-			return *this;
-		}
-		
-		dbutil(const dbutil &source) noexcept:  m_dbconnstr {source.m_dbconnstr}, conn{source.conn} 
-		{ }
-		
-		dbutil& operator =(const dbutil& source) noexcept
-		{
-			if (this == &source)
-				return *this;			
-			m_dbconnstr = source.m_dbconnstr;
-			conn = source.conn;
-			return *this;	
-		}
 		
 		inline void reset_connection() noexcept
 		{
@@ -79,9 +56,18 @@ namespace
 		}
 	};
 
-	PGconn* getdb(const std::string& dbname, bool reset = false)
+	PGconn* getdb(const std::string& dbname, bool reset = false, bool close_all = false)
 	{
 		thread_local  std::unordered_map<std::string, dbutil, util::string_hash, std::equal_to<>> dbconns;
+		
+		if (close_all) {
+			for (auto& [key, conn]: dbconns) {
+				conn.close();
+				logger::log(LOGGER_SRC, "debug", logger::format("closing database connection: $1", {key}));
+			}
+			return nullptr;
+		}
+		
 		if (!dbconns.contains(dbname)) {
 			std::string connstr{env::get_str(dbname)};
 			if (!connstr.empty()) {
@@ -132,6 +118,11 @@ namespace
 
 namespace sql 
 {
+	void close_all() noexcept
+	{
+		getdb("", false, true);
+	}
+	
 	//executes a query that doesn't return rows (data modification query)
 	void exec_sql(const std::string& dbname, const std::string& sql)
 	{

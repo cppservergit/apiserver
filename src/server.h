@@ -50,7 +50,7 @@
 #include "jwt.h"
 #include "email.h"
 
-constexpr char SERVER_VERSION[] = "API-Server++ v1.0.2";
+constexpr char SERVER_VERSION[] = "API-Server++ v1.0.3";
 constexpr const char* LOGGER_SRC {"server"};
 
 struct webapi_path
@@ -111,6 +111,7 @@ auto consumer = [](std::stop_token tok, auto srv) noexcept
 		event.data.ptr = &params.req;
 		epoll_ctl(params.req.epoll_fd, EPOLL_CTL_MOD, params.req.fd, &event);
 	}
+	sql::close_all();
 	
 	//ending task - free resources
 	logger::log("pool", "info", "stopping worker thread", true);
