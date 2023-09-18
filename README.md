@@ -932,34 +932,11 @@ Please note that in order to use dynamic analysis tools you need to compile with
 
 ## Static analysis with SonarCloud
 
-SonarCloud is the top player in C++ static analysis, performing rigorous analysis of the code to ensure compliance with [C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines) as well as a database of Sonar C++ Rules, it is really strict, API-Server++ was analyzed and rewritten during 2 weeks in order to achieve a top score with SonarCloud, this way we can provide a quality Modern C++ code-base that implements the industry-accepted best practices, and at the same time is simple and fast.
+SonarCloud is the top player in C++ static analysis, performing rigorous analysis of the code to ensure compliance with [C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines) as well as a database of Sonar C++ Rules, it is really strict, API-Server++ was analyzed and rewritten in order to achieve a top score with SonarCloud, this way we can provide a quality Modern C++ code-base that implements the industry-accepted best practices, and at the same time is simple and fast.
 
-![image](https://github.com/cppservergit/apiserver/assets/126841556/c1f10e91-799b-4cd6-be76-ec9c38bd2b27)
+![image](https://github.com/cppservergit/apiserver/assets/126841556/8422507e-f30a-44dd-8539-1c6af62402b1)
 
-The 3 "code smells" are related to very specific "issues":
-
-* Classes that encapsulate C APIs (libcurl and libpq) and consequently comply with RAII principle using constructor and destructor to properly manage resources in a Modern C++ fashion, but according to certain Sonar [Rule of Zero](https://sonarcloud.io/organizations/cppservergit/rules?open=cpp%3AS4963&rule_key=cpp%3AS4963), this is an issue, in any case it is unavoidable for API-Server++ since it does require direct access to these APIs for maximum performance.
-* Using low-level date APIs to format dates instead of std::format, but we are using GCC 12.3 and sadly std::format is not available. If we had used more Modern C++ date functions like std::put_time, the code involved would be 10 times slower and it is mission critical from the performance perspective because it generates the HTTP response `Date` header for __every__ API requests. The current code is thread-safe, memory-safe, simple and has the best performance available:
-
-```
-	std::string get_response_date() noexcept
-	{
-		std::array<char, 64> buf;
-		auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-		std::tm tm{};
-		gmtime_r(&now, &tm);
-		std::strftime(buf.data(), buf.size(), "%a, %d %b %Y %H:%M:%S GMT", &tm);
-		return std::string(buf.data());		
-	}
-```
-
-The SonarCloud issue is raised because of the use of the `std::strftime()` function.
-
-If using GCC 13.x then all of the above code can be changed to this Modern C++ approach using chrono and format:
-```
-    const auto tp {std::chrono::system_clock::now()};
-    const auto date_hdr {std::format("{:%a, %d %b %Y %H:%M:%S GMT}", tp)};
-```
+We managed to fix all issues reported and the current code base has achieved a perfect score for all the code, no issues of any kind were detected.
 
 ## Static analysis with open-source tools
 
@@ -1019,7 +996,7 @@ There is a separate branch of this project that instead of using the native Post
 
 For development purposes please install these packages:
 ```
-sudo apt install g++-12 libssl-dev libpq-dev libcurl4-openssl-dev libldap-dev unixodbc-dev tdsodbc make -y --no-install-recommends
+sudo apt install g++-12 libssl-dev libpq-dev libcurl4-openssl-dev uuid-dev libldap-dev unixodbc-dev tdsodbc make -y --no-install-recommends
 ```
 This command will also install [FreeTDS](https://www.freetds.org/index.html) ODBC driver for SQL Server and Sybase.
 
