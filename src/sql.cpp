@@ -118,7 +118,7 @@ namespace
 
 namespace sql 
 {
-	void close_all() noexcept
+	void close_all()
 	{
 		getdb("", false, true);
 	}
