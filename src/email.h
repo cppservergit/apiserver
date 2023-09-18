@@ -28,9 +28,6 @@ namespace smtp
 	struct mail
 	{
 			explicit mail(const std::string& server, const std::string& user, const std::string& pwd);
-			mail(const mail&);
-			mail& operator=(const mail&) = default;
-			~mail();
 			void send() noexcept;
 			void add_attachment(const std::string& path, const std::string& filename, const std::string& encoding = "base64" ) noexcept;
 			void add_attachment(const std::string& path) noexcept;
@@ -43,12 +40,15 @@ namespace smtp
 			void set_x_request_id(std::string_view  _id) noexcept;
 			
 		private:
+			void build_message();
+			
 			CURL *curl{nullptr};
 			CURLcode res = CURLE_OK;
 			struct curl_slist *headers = nullptr;
 			struct curl_slist *recipients = nullptr;
 			curl_mime *mime;
-			curl_mimepart *part;			
+			curl_mimepart *part;
+			
 			std::string server_url;
 			std::string username;
 			std::string password;
