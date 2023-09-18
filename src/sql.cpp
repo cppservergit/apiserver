@@ -31,7 +31,7 @@ namespace
 		{
 			conn = PQconnectdb(m_dbconnstr.c_str());
 			if (PQstatus(conn) != CONNECTION_OK)
-				logger::log(LOGGER_SRC, "error", "dbutil() -> $1", {get_error(conn)}, true);
+				logger::log(LOGGER_SRC, "error", std::format("dbutil() -> {}", get_error(conn)));
 		}
 
 		~dbutil() {
@@ -48,13 +48,13 @@ namespace
 		inline void reset_connection() noexcept
 		{
 			if ( PQstatus(conn) == CONNECTION_BAD ) {
-				logger::log(LOGGER_SRC, "warn", "reset_connection() -> connection to database $1 no longer valid, reconnecting... ", {std::string(PQdb(conn))}, true);
+				logger::log(LOGGER_SRC, "warn", std::format("reset_connection() -> connection to database {} no longer valid, reconnecting... ", PQdb(conn)));
 				PQfinish(conn);
 				conn = PQconnectdb(m_dbconnstr.c_str());
 				if (PQstatus(conn) != CONNECTION_OK)
-					logger::log(LOGGER_SRC, "error", "reset_connection() -> error reconnecting to database $1: $2", {std::string(PQdb(conn)), get_error(conn)}, true);
+					logger::log(LOGGER_SRC, "error", std::format("reset_connection() -> error reconnecting to database {}: {}", PQdb(conn), get_error(conn)));
 				else
-					logger::log(LOGGER_SRC, "info", "reset_connection() -> connection to database $1 restored", {std::string(PQdb(conn))}, true);
+					logger::log(LOGGER_SRC, "info", std::format("reset_connection() -> connection to database {} restored", PQdb(conn)));
 			}
 		}
 	};
@@ -69,7 +69,7 @@ namespace
 				return iter->second.conn;
 			}
 			else {
-				throw sql::database_exception(logger::format("getdb() -> invalid dbname: $1", {dbname}));
+				throw sql::database_exception(std::format("getdb() -> invalid dbname: {}", dbname));
 			}
 		} else {
 			if (reset)
@@ -82,14 +82,13 @@ namespace
 	{
 		if ( PQstatus(conn) == CONNECTION_BAD ) {
 			if (retries == max_retries) {
-				throw sql::database_exception(logger::format("retry() -> cannot connect to database:: $1", {dbname}));
+				throw sql::database_exception(std::format("retry() -> cannot connect to database:: {}", dbname));
 			} else {
 				retries++;
 				getdb(dbname, true);
 			}
 		} else {
-			std::string error {logger::format("db_exec() $1 -> sql: $2", {get_error(conn), sql})};
-			throw sql::database_exception(error);
+			throw sql::database_exception(std::format("db_exec() {} -> sql: {}", get_error(conn), sql));
 		}		
 	}
 
@@ -156,16 +155,11 @@ namespace sql
 	std::string get_json_response(const std::string& dbname, const std::string &sql)
 	{
 		return db_exec<std::string>(dbname, sql, [](PGresult *res){
-				std::string json;
+				std::string json {R"({"status":"EMPTY"})"};
 				int rows {PQntuples(res)};
-				bool is_null {false};
-				if (rows) {
-					is_null = PQgetisnull(res, 0, 0);
-					if (!is_null) 
-						json.append(R"({"status":"OK", "data":)").append(PQgetvalue(res, 0, 0)).append("}");
-				}
-				if (!rows || is_null)
-					json.append(R"({"status":"EMPTY"})");
+				if (rows)
+					if (!PQgetisnull(res, 0, 0)) 
+						json = std::format(R"({{"status":"OK", "data":{}}})", PQgetvalue(res, 0, 0));
 				PQclear(res);
 				return json;
 		});
