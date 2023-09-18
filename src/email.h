@@ -28,11 +28,8 @@ namespace smtp
 	struct mail
 	{
 			explicit mail(const std::string& server, const std::string& user, const std::string& pwd);
-			mail() = delete;
-			mail(const mail&) = delete;
-			mail(mail&&) = delete;
-			mail& operator=(const mail&) = delete;
-			mail& operator=(mail&& other) = delete;
+			mail(const mail&);
+			mail& operator=(const mail&) = default;
 			~mail();
 			void send() noexcept;
 			void add_attachment(const std::string& path, const std::string& filename, const std::string& encoding = "base64" ) noexcept;

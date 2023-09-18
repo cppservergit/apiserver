@@ -16,6 +16,9 @@ namespace smtp
 		curl_mime_free(mime);
 	}
 
+	mail::mail(const mail& other) // II. copy constructor
+        : mail(other.server_url, other.username, other.password) {}
+ 
 	void mail::send() noexcept
 	{
 		
