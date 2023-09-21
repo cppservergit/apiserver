@@ -320,7 +320,7 @@ namespace http
 		_origin.clear();
 	}
 
-	bool response_stream::write (int fd) noexcept 
+	bool response_stream::write(int fd) noexcept 
 	{
 		const char* buf = data();
 		buf += _pos1;
@@ -567,8 +567,8 @@ namespace http
 			return;
 		}
 
-		if (method=="POST" && (!isMultipart || contentLength <= 0)) {
-			set_parse_error("Bad request -> POST supported for multipart/form-data only with a valid content-length header");
+		if (method=="POST" && !isMultipart && get_header("content-type") != "application/json") {
+			set_parse_error("Bad request -> POST supported for multipart/form-data and JSON only with a valid content-length header");
 			return;
 		}
 
@@ -602,7 +602,7 @@ namespace http
 	bool request::eof() 
 	{
 		if ( (payload.size() - bodyStartPos) == contentLength ) {
-			if (method == "POST") 
+			if (method == "POST" && isMultipart) 
 				parse_form();
 			return true;
 		}
@@ -752,6 +752,11 @@ namespace http
 			m.send();
 		});
 		task.detach();
+	}
+
+	std::string request::get_body() const noexcept
+	{
+		return payload.substr(bodyStartPos);
 	}
 
 }
