@@ -139,7 +139,14 @@ struct server
 	};
 	
 	std::unordered_map<std::string, webapi, util::string_hash, std::equal_to<>> webapi_catalog;
-		
+	
+	std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>> ip_restrictions;
+	
+	void set_ip_restriction(const webapi_path& path, const std::string& iplist)
+	{
+		ip_restrictions.try_emplace(path.get(), iplist);
+	}
+	
 	std::atomic<size_t> g_counter{0};
 	std::atomic<double> g_total_time{0};
 	std::atomic<int>	g_active_threads{0};
@@ -257,6 +264,9 @@ struct server
 
 	void execute_service(http::request& req, const webapi& api)
 	{
+		if (!ip_restrictions.empty() && ip_restrictions.contains(req.path)) 
+			if (!ip_restrictions[req.path].contains(req.remote_ip))
+				throw http::access_denied_exception(req.user_info.login, req.remote_ip, "IP address restriction on this WebAPI");
 		req.enforce(api.verb);
 		if (!api.rules.empty())
 			req.enforce(api.rules);
