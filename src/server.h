@@ -47,7 +47,7 @@
 #include "jwt.h"
 #include "email.h"
 
-constexpr char SERVER_VERSION[] = "API-Server++ v1.0.4";
+constexpr char SERVER_VERSION[] = "API-Server++ v1.0.5";
 constexpr const char* LOGGER_SRC {"server"};
 
 struct webapi_path
@@ -411,7 +411,7 @@ struct server
 			epoll_abort_request(req);
 	}
 
-	constexpr void epoll_handle_read(epoll_event& ev, auto& data) noexcept
+	constexpr void epoll_handle_read(epoll_event& ev, std::array<char, 8192>& data) noexcept
 	{
 		http::request& req = *static_cast<http::request*>(ev.data.ptr);
 		while (true) 
@@ -419,11 +419,9 @@ struct server
 			int count = read(req.fd, data.data(), data.size());
 			if (count == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
 				return;
-			if (count > 0) {
-				if (read_request(req, data.data(), count)) {
+			if (count > 0 && read_request(req, data.data(), count)) {
 					run_async_task(req);
 					break;
-				}
 			}
 		}
 	}
@@ -564,12 +562,23 @@ struct server
 			false /* no security */
 		);
 		
+		constexpr auto str {
+			"# HELP {0} {1}.\n"
+			"# TYPE {0} counter\n"
+			"{0}{{pod=\"{2}\"}} {3}\n"
+		};
+		constexpr auto str_avg {
+			"# HELP {0} {1}.\n"
+			"# TYPE {0} counter\n"
+			"{0}{{pod=\"{2}\"}} {3:f}\n"
+		};
+
 		register_webapi
 		(
 			webapi_path("/api/metrics"), 
 			"Return metrics in Prometheus format",
 			http::verb::GET, 
-			[this](http::request& req) 
+			[&str, &str_avg, this](http::request& req) 
 			{
 				std::string body;
 				body.reserve(1027);
@@ -577,16 +586,6 @@ struct server
 				size_t _counter = g_counter;
 				int _active_threads = g_active_threads;
 				size_t _connections = g_connections;
-				constexpr auto str {
-					"# HELP {0} {1}.\n"
-					"# TYPE {0} counter\n"
-					"{0}{{pod=\"{2}\"}} {3}\n"
-				};
-				constexpr auto str_avg {
-					"# HELP {0} {1}.\n"
-					"# TYPE {0} counter\n"
-					"{0}{{pod=\"{2}\"}} {3:f}\n"
-				};
 				body.append(std::format(str, "cpp_requests_total", "The number of HTTP requests processed by this container", pod_name, _counter));
 				body.append(std::format(str, "cpp_connections", "Client tcp-ip connections", pod_name, _connections));
 				body.append(std::format(str, "cpp_active_threads", "Active threads", pod_name, _active_threads));
