@@ -11,8 +11,8 @@ namespace logger
 			return ss.str();
 		};
 		
-		const auto json {std::format(R"({{"source":"{}","level":"{}","msg":"{}","thread":"{}","x-request-id":"{}"}})",
-			source, level, msg, this_thread_id(), x_request_id) + "\n"};
+		const auto json {std::format(R"({{"source":"{}","level":"{}","msg":"{}","thread":"{}","x-request-id":"{}"}}{})",
+			source, level, msg, this_thread_id(), x_request_id, '\n')};
 		
 		std::clog << json; //thread-safe
 	}
