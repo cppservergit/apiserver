@@ -562,23 +562,12 @@ struct server
 			false /* no security */
 		);
 		
-		constexpr auto str {
-			"# HELP {0} {1}.\n"
-			"# TYPE {0} counter\n"
-			"{0}{{pod=\"{2}\"}} {3}\n"
-		};
-		constexpr auto str_avg {
-			"# HELP {0} {1}.\n"
-			"# TYPE {0} counter\n"
-			"{0}{{pod=\"{2}\"}} {3:f}\n"
-		};
-
 		register_webapi
 		(
 			webapi_path("/api/metrics"), 
 			"Return metrics in Prometheus format",
 			http::verb::GET, 
-			[&str, &str_avg, this](http::request& req) 
+			[this](http::request& req) 
 			{
 				std::string body;
 				body.reserve(1027);
@@ -586,6 +575,8 @@ struct server
 				size_t _counter = g_counter;
 				int _active_threads = g_active_threads;
 				size_t _connections = g_connections;
+				constexpr auto str {"# HELP {0} {1}.\n# TYPE {0} counter\n{0}{{pod=\"{2}\"}} {3}\n"};
+				constexpr auto str_avg {"# HELP {0} {1}.\n# TYPE {0} counter\n{0}{{pod=\"{2}\"}} {3:f}\n"};
 				body.append(std::format(str, "cpp_requests_total", "The number of HTTP requests processed by this container", pod_name, _counter));
 				body.append(std::format(str, "cpp_connections", "Client tcp-ip connections", pod_name, _connections));
 				body.append(std::format(str, "cpp_active_threads", "Active threads", pod_name, _active_threads));
