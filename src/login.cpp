@@ -31,8 +31,8 @@ namespace login
 	//expects a resultset with these columns: mail, displayname, rolenames
 	login_result bind(const std::string& login, const std::string& password)
 	{
-		std::string sql {"select * from cpp_dblogin('" + login + "', '" + password + "')"};
-		if (auto rec {sql::get_record("CPP_LOGINDB", sql)}; rec.size()) {
+		std::string sql {std::format("select * from cpp_dblogin('{}', '{}')", login, password)};
+		if (auto rec {sql::get_record("CPP_LOGINDB", sql)}; !rec.empty()) {
 			return login_result {true, rec["displayname"], rec["email"], rec["rolenames"]};
 		} else
 			return login_result{false, "", "", ""};

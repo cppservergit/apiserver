@@ -1,5 +1,5 @@
 /*
- * logger - json log output to stderr and loki (optional using loki module), depends on env, loki
+ * logger - JSON log output to stderr for Grafana Loki
  *
  *  Created on: Feb 21, 2023
  *      Author: Martin Cordova cppserver@martincordova.com - https://cppserver.com
@@ -11,35 +11,15 @@
 #define LOGGER_H_
 
 #include <string>
+#include <string_view>
 #include <thread>
 #include <iostream>
-#include <vector>
-#include <algorithm>
+#include <sstream>
+#include <format>
 
 namespace logger
 {
-	void log(std::string_view source, std::string_view level, std::string msg, bool add_thread_id = false, std::string_view x_request_id = "") noexcept;
-	
-	template<typename T>
-	std::string format(std::string msg, const std::initializer_list<T>& values) noexcept
-	{
-		int i{1};
-		for (const auto& v: values) {
-			std::string item {"$"};
-			item.append(std::to_string(i));
-			if (auto pos {msg.find(item)}; pos != std::string::npos)
-				msg.replace(pos, item.size(), v);
-			++i;
-		}
-		return msg;
-	}
-
-	template<typename T>
-	void log(std::string_view source, std::string_view level, std::string msg, const std::initializer_list<T>& values, bool add_thread_id = false, std::string_view x_request_id = "") noexcept
-	{
-		log(source, level, format(msg, values), add_thread_id, x_request_id);
-	}
-	
+	void log(std::string_view source, std::string_view level, std::string_view msg, std::string_view x_request_id = "") noexcept;
 }
 
 #endif /* LOGGER_H_ */

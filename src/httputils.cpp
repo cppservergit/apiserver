@@ -3,7 +3,7 @@
 namespace
 {
 	/* utility functions */
-	std::string lowercase(std::string_view sv) noexcept 
+	inline std::string lowercase(std::string_view sv) noexcept 
 	{
 		std::string s {sv};
 		std::ranges::transform( s, s.begin(), [](unsigned char c){ return std::tolower(c); } );
@@ -76,21 +76,22 @@ namespace
 		size_t start_pos = 0;
 		while((start_pos = str.find(from, start_pos)) != std::string::npos) {
 			str.replace(start_pos, from.length(), to);
-			start_pos += to.length(); // Handles case where 'to' is a substring of 'from'
+			start_pos += to.length();
 		}
 	}	
 
-	void save_blob(const std::string& filename, const std::string& content) noexcept 
+	inline bool save_blob(const std::string& filename, const std::string& content)
 	{
 		std::ofstream ofs(filename, std::ios::binary);
-		if ( ofs.is_open() )
+		if (ofs.is_open()) {
 			ofs << content;
-		else 
-			logger::log("http", "error", "save_blob() cannot write to file: " + filename, true);
+			return true;
+		} else 
+			return false;
 	}
 
 	//upload support functions---------
-	std::vector<std::string_view> parse_body(auto req) {
+	constexpr std::vector<std::string_view> parse_body(auto req) {
 		std::vector<std::string_view> vec;
 		std::string_view body {req->payload};
 		body = body.substr(req->bodyStartPos);
@@ -106,7 +107,7 @@ namespace
 		return vec;
 	}
 
-	std::vector<std::string_view> parse_part(std::string_view body) {
+	constexpr std::vector<std::string_view> parse_part(std::string_view body) {
 		std::vector<std::string_view> vec;
 		constexpr std::string_view delim{"\r\n"};
 		for (const auto& word : std::views::split(body, delim)) {
@@ -117,7 +118,7 @@ namespace
 		return vec;
 	}
 
-	std::string_view extract_attribute(std::string_view part, const std::string& name) {
+	constexpr std::string_view extract_attribute(std::string_view part, const std::string& name) {
 		const std::string delim1 {name + "=\""};
 		const std::string delim2 {"\""};
 		if (auto pos1 {part.find(delim1)}; pos1 != std::string::npos) {
@@ -128,14 +129,14 @@ namespace
 		return "";    
 	}
 
-	std::string_view get_part_content_type(std::string_view line) {
+	constexpr std::string_view get_part_content_type(std::string_view line) {
 		std::string_view marker {"Content-Type: "};
 		auto pos = line.find(marker);
 		pos += marker.size();
 		return line.substr(pos);
 	}
 
-	http::form_field get_form_field(std::vector<std::string_view> part) {
+	constexpr http::form_field get_form_field(std::vector<std::string_view> part) {
 		http::form_field f;
 		size_t idx{1};
 		f.name = extract_attribute(part[0], "name");
@@ -152,7 +153,7 @@ namespace
 		return f;
 	}
 	
-	std::vector<http::form_field> parse_multipart(auto req) 
+	constexpr std::vector<http::form_field> parse_multipart(auto req) 
 	{
 		std::vector<http::form_field> fields;
 		for (const auto& vec {parse_body(req)}; auto& part: vec) {
@@ -164,7 +165,7 @@ namespace
 	//--------------------------
 
 	//mail and log support------
-	std::string load_mail_template(const std::string& filename)
+	constexpr std::string load_mail_template(const std::string& filename)
 	{
 		std::ifstream file(filename);
 		if (std::stringstream buffer; file.is_open()) {
@@ -175,7 +176,7 @@ namespace
 		}
 	}
 
-	std::string replace_params(auto req, std::string body)
+	constexpr std::string replace_params(auto req, std::string body)
 	{
 		if (std::size_t pos = body.find("$userlogin"); pos != std::string::npos)
 			body.replace(pos, std::string("$userlogin").length(), req->user_info.login);
@@ -195,7 +196,7 @@ namespace
 		return body;
 	}	
 
-	std::string get_mail_body(auto req, const std::string& template_file)
+	constexpr std::string get_mail_body(auto req, const std::string& template_file)
 	{
 		std::string tpl_path {"/var/mail/" + template_file};
 		return replace_params(req, load_mail_template(tpl_path));
@@ -207,22 +208,13 @@ namespace
 
 namespace http
 {
-	inline std::string get_uuid() noexcept 
+	std::string get_uuid() noexcept 
 	{
 		std::array<unsigned char, 16> out;
 		uuid_generate(out.data());
 		std::array<char, 37> uuid;
 		uuid_unparse(out.data(), uuid.data());
 		return std::string(uuid.data());
-	}
-
-	inline std::string get_response_date() noexcept
-	{
-		auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-		std::tm tm{};
-		std::ostringstream s;
-		s << std::put_time(gmtime_r(&now, &tm), "%a, %d %b %Y %H:%M:%S GMT");		
-		return s.str();
 	}
 
 	line_reader::line_reader(std::string_view str) : buffer{str} { }
@@ -249,22 +241,31 @@ namespace http
 		_buffer.reserve(16383);
 	}
 
-	void response_stream::set_body(std::string_view body, std::string_view content_type, int max_age)
+	void response_stream::set_body(std::string_view body, std::string_view content_type)
 	{
-		_buffer.append("HTTP/1.1 200 OK").append("\r\n");
-		_buffer.append("Content-Length: ").append(std::to_string(body.size())).append("\r\n");
-		_buffer.append("Content-Type: ").append(content_type).append("\r\n");
-		_buffer.append("Date: ").append(get_response_date()).append("\r\n");
-		_buffer.append("Keep-Alive: timeout=60, max=25\r\n");
-		_buffer.append("Access-Control-Allow-Origin: ").append(_origin).append("\r\n");
-		_buffer.append("Access-Control-Expose-Headers: content-disposition\r\n");
-		_buffer.append("Strict-Transport-Security: max-age=31536000; includeSubDomains; preload;\r\n");
-		_buffer.append("X-Frame-Options: SAMEORIGIN\r\n");
-		if (max_age)
-			_buffer.append("Cache-Control: max-age=").append(std::to_string(max_age)).append("\r\n");
-		if (!_content_disposition.empty())
-			_buffer.append("Content-Disposition: ").append(_content_disposition).append("\r\n");
-		_buffer.append("\r\n").append(body);
+		constexpr auto resp { 	
+			"HTTP/1.1 200 OK\r\n"
+			"Content-Length: {}\r\n"
+			"Content-Type: {}\r\n"
+			"Date: {:%a, %d %b %Y %H:%M:%S GMT}\r\n"
+			"Keep-Alive: timeout=60, max=25\r\n"
+			"Access-Control-Allow-Origin: {}\r\n"
+			"Access-Control-Expose-Headers: content-disposition\r\n"
+			"Strict-Transport-Security: max-age=31536000; includeSubDomains; preload;\r\n"
+			"X-Frame-Options: SAMEORIGIN\r\n"
+			"Content-Disposition: {}\r\n"
+			"\r\n"
+			"{}" 
+		};
+							
+		_buffer.append(std::format(resp, 
+			body.size(),
+			content_type,
+			std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()),
+			_origin,
+			_content_disposition,
+			body
+		));
 	}
 	
 	void response_stream::set_content_disposition(std::string_view disposition)
@@ -342,7 +343,7 @@ namespace http
 					return false;
 			}
 			if (count <= 0 && errno != EAGAIN) {
-				logger::log("epoll", "error", "send() error: $1 FD: $2", {std::string(strerror(errno)), std::to_string(fd)});
+				logger::log("epoll", "error", std::format("send() error: {} FD: {}", strerror(errno), fd));
 				return true;
 			}
 		}
@@ -367,6 +368,7 @@ namespace http
 		contentLength = 0;
 		method = "";
 		isMultipart = false;
+		save_blob_failed = false;
 		user_info.login = "";
 		user_info.mail = "";
 		user_info.roles = "";
@@ -435,19 +437,19 @@ namespace http
 			method = line.substr( 0, newpos );
 			nextpos = newpos;
 		} else {
-			set_parse_error(logger::format("Bad request -> 1st line lacks http method: $1", {line}));
+			set_parse_error(std::format("Bad request -> 1st line lacks http method: {}", line));
 			return false;
 		}
 
 		if (method != "GET" && method != "POST" && method != "OPTIONS") {
-			set_parse_error(logger::format("Bad request -> only GET-POST-OPTIONS are supported: $1", {method}));
+			set_parse_error(std::format("Bad request -> only GET-POST-OPTIONS are supported: {}", method));
 			return false;
 		}
 
 		if (auto newpos = line.find("/", nextpos); newpos != std::string::npos) {
 			queryString = line.substr( newpos,  line.find(" ", newpos) - newpos );
 		} else {
-			set_parse_error(logger::format("Bad request -> 1st line lacks URI path: : $1", {line}));
+			set_parse_error(std::format("Bad request -> 1st line lacks URI path: : {}", line));
 			return false;
 		}
 
@@ -463,7 +465,7 @@ namespace http
 	{
 		auto [iter, success] {headers.try_emplace(header, value)};
 		if (!success) {
-			set_parse_error(logger::format("Bad request -> duplicated header $1", {header}));
+			set_parse_error(std::format("Bad request -> duplicated header {}", header));
 			return false;
 		}
 		return true;
@@ -471,14 +473,15 @@ namespace http
 	
 	bool request::set_content_length(std::string_view value)
 	{
+		constexpr auto msg {"Bad request -> invalid content length header: {} value: {}"};
 		try {
 			contentLength = std::stoul(value.data());
 		} catch (const std::invalid_argument& e) {
-			set_parse_error(logger::format("Bad request -> invalid content length header: $1 value: $1", {e.what(), value.data()}));
+			set_parse_error(std::format(msg, e.what(), value));
 			return false;			
 		} catch (const std::out_of_range& e) {
-			set_parse_error(logger::format("Bad request -> invalid content length header - $1 value: $2", {e.what(), value.data()}));
-			return false;			
+			set_parse_error(std::format(msg, e.what(), value));
+			return false;	
 		}
 		return true;
 	}
@@ -563,16 +566,16 @@ namespace http
 			return;
 
 		if (contentLength <= 0 && method == "POST") {
-			set_parse_error(logger::format("Bad request -> invalid content length: $1", {std::to_string(contentLength)}));
+			set_parse_error(std::format("Bad request -> invalid content length: {}", contentLength));
 			return;
 		}
-
+		
 		if (method=="POST" && !isMultipart && get_header("content-type") != "application/json") {
 			set_parse_error("Bad request -> POST supported for multipart/form-data and JSON only with a valid content-length header");
 			return;
 		}
 
-		if (method=="GET" && !queryString.empty() && queryString.contains("?"))
+		if (method == "GET" && !queryString.empty() && queryString.contains("?"))
 			parse_query_string(queryString);
 		
 		response.set_origin(origin);
@@ -594,7 +597,7 @@ namespace http
 				params.try_emplace( "content_type", f.content_type);
 				params.try_emplace( "filename", f.filename);
 				if (_save)
-					save_blob(blob_path + file_uuid, f.data);
+					save_blob_failed = !save_blob(blob_path + file_uuid, f.data);
 			}
 		}
 	}
@@ -627,10 +630,9 @@ namespace http
 	}
 
 	//using while-loop and iterator to be compliant with Sonar rule cpp:S886
-	std::string request::decode_param(std::string_view encoded_string) const noexcept
+	constexpr std::string request::decode_param(std::string_view encoded_string) const noexcept
 	{
 		std::string decoded_string;
-		decoded_string.reserve(63);
 		auto it {std::begin(encoded_string)};
 		auto end {std::end(encoded_string)};
 		while (it != end) {
@@ -717,7 +719,7 @@ namespace http
 
 	void request::log(std::string_view source, std::string_view level, const std::string& msg) noexcept
 	{
-		logger::log(source, level, replace_params(this, msg), true, get_header("x-request-id"));
+		logger::log(source, level, replace_params(this, msg), get_header("x-request-id"));
 	}
 
 	void request::send_mail(const std::string& to, const std::string& subject, const std::string& body) noexcept

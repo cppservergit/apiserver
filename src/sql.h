@@ -21,7 +21,6 @@
 
 namespace sql
 {
-	
 	class database_exception
 	{
 		public:
@@ -33,11 +32,11 @@ namespace sql
             std::string m_msg;
 	};
 	
-	void close_all();
 	void exec_sql(const std::string& dbname, const std::string& sql);
 	bool has_rows(const std::string& dbname, const std::string &sql);
 	std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>> get_record(const std::string& dbname, const std::string& sql);
 	std::string get_json_response(const std::string& dbname, const std::string &sql);
+	void close();
 }
 
 #endif /* SQL_H_ */

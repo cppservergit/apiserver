@@ -6,15 +6,26 @@ namespace smtp
 	mail::mail(const std::string& server, const std::string& user, const std::string& pwd): server_url{server}, username{user}, password{pwd}
 	{ }
 	
-	void mail::build_message() {
+	void mail::add_documents() noexcept
+	{
+		for (const auto& doc: documents)
+		{
+			part = curl_mime_addpart(mime);
+			curl_mime_encoder(part, doc.encoding.c_str());
+			curl_mime_filedata(part, doc.filesystem_path.c_str());
+			if (!doc.filename.empty())
+				curl_mime_filename(part, doc.filename.c_str());
+		}		
+	}
+	
+	void mail::build_message() noexcept
+	{
 		std::string domain;
 		if (auto pos = username.find("@"); pos != std::string::npos) 
 			domain = username.substr(pos);
-				
-		body.append("\r\n");
 		
 		std::vector<std::string> mail_headers {
-			std::string("Date: " + http::get_response_date()),
+			std::format("Date: {:%a, %d %b %Y %H:%M:%S GMT}", std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())),
 			"To: " + to,
 			"From: " + username,
 			"Cc: " + cc,
@@ -33,19 +44,12 @@ namespace smtp
 
 		mime = curl_mime_init(curl);
 
+		body.append("\r\n");
 		part = curl_mime_addpart(mime);
 		curl_mime_data(part, body.c_str(), CURL_ZERO_TERMINATED);
 		curl_mime_type(part, "text/html");
 		
-		for (const auto& doc: documents)
-		{
-			part = curl_mime_addpart(mime);
-			curl_mime_encoder(part, doc.encoding.c_str());
-			curl_mime_filedata(part, doc.filesystem_path.c_str());
-			if (!doc.filename.empty())
-				curl_mime_filename(part, doc.filename.c_str());
-		}
-		
+		add_documents();
 	}
 	
 	void mail::send() noexcept
@@ -65,13 +69,13 @@ namespace smtp
 
 			build_message();
 			
-			logger::log("email", "info", "sending email to: " + to + " with subject: " + subject, true, x_request_id);
+			logger::log("email", "info", std::format("sending email to: {} with subject: {}", to, subject), x_request_id);			
 			
 			curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
 			res = curl_easy_perform(curl);
 		 
 			if(res != CURLE_OK)
-				logger::log("email", "error", "curl_easy_perform() failed: $1", {std::string(curl_easy_strerror(res))}, true, x_request_id);
+				logger::log("email", "error", std::format("curl_easy_perform() failed: {}", curl_easy_strerror(res)), x_request_id);
 			
 			curl_slist_free_all(recipients);
 			curl_slist_free_all(headers);

@@ -16,15 +16,12 @@
 #include <unordered_map>
 #include <algorithm>
 #include <fstream>
-#include <random>
-#include <cstdio>
 #include <vector>
 #include <sstream>
-#include <iomanip>
 #include <cstring>
-#include <ctime>
 #include <array>
 #include <ranges>
+#include <format>
 #include <iterator>
 #include <sys/socket.h>
 #include <uuid/uuid.h>
@@ -38,7 +35,6 @@ namespace http
 	const std::string blob_path {"/var/blobs/"};
 	
 	std::string get_uuid() noexcept;
-	std::string get_response_date() noexcept;
 
 	enum class verb {GET, POST};
 
@@ -97,6 +93,18 @@ namespace http
             std::string m_method;
 	};
 	
+	class save_blob_exception
+	{
+		public:
+			explicit save_blob_exception(const std::string& _msg): m_msg {_msg} {}
+			std::string what() const noexcept {
+				std::string error_msg{m_msg};
+				return error_msg;
+			}
+		private:
+            std::string m_msg;
+	};	
+	
 	class resource_not_found_exception
 	{
 		public:
@@ -143,7 +151,7 @@ namespace http
 		response_stream& operator <<(std::string_view data);
 		response_stream& operator <<(const char* data);
 		response_stream& operator <<(size_t data);
-		void set_body(std::string_view body, std::string_view content_type = "application/json", int max_age = 0);
+		void set_body(std::string_view body, std::string_view content_type = "application/json");
 		void set_content_disposition(std::string_view disposition);
 		void set_origin(std::string_view origin);
 		std::string_view view() const noexcept;
@@ -181,6 +189,7 @@ namespace http
 		size_t bodyStartPos{0};
 		size_t contentLength{0};
 		bool isMultipart{false};
+		bool save_blob_failed{false};
 		std::string method;
 		std::string queryString;
 		std::string path;
@@ -229,10 +238,10 @@ namespace http
 			const std::string& subject, const std::string& body, const std::string& attachment, const std::string& attachment_filename) noexcept;
 		
 		std::string get_body() const noexcept;
-				
+		
 	  private:
 		void test_field(const http::input_rule& r, std::string& value);
-		std::string decode_param(std::string_view value) const noexcept;
+		constexpr std::string decode_param(std::string_view value) const noexcept;
 		void parse_param(std::string_view param) noexcept; 
 		void parse_query_string(std::string_view qs) noexcept;	
 		bool parse_headers(line_reader& lr);

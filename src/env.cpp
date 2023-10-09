@@ -23,9 +23,9 @@ namespace
 			std::string_view str(env_p);
 			auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), value);
 			if (ec == std::errc::invalid_argument)
-				logger::log(LOGGER_SRC, "warn", "read_env() -> invalid argument for std::from_chars: " + std::string(env_p) + " env-var: " + std::string(name), true);
+				logger::log(LOGGER_SRC, "warn", std::format("read_env() -> invalid argument for std::from_chars: {} env-var: {}", env_p, name));
 			else if (ec == std::errc::result_out_of_range)
-				logger::log(LOGGER_SRC, "warn", "read_env() -> number out of range in std::from_chars: " + std::string(env_p) + " env-var: " + std::string(name), true);
+				logger::log(LOGGER_SRC, "warn", std::format("read_env() -> number out of range in std::from_chars: {} env-var: {}", env_p, name));
 		}
 		return value;
 	}

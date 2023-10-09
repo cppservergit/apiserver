@@ -10,9 +10,7 @@
 #ifndef EMAIL_H_
 #define EMAIL_H_
 
-extern "C" {
-	#include <curl/curl.h>
-}
+#include <curl/curl.h>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -20,6 +18,8 @@ extern "C" {
 #include <iomanip>
 #include <sstream>
 #include <array>
+#include <format>
+#include <chrono>
 #include "logger.h"
 #include "httputils.h"
 
@@ -40,7 +40,8 @@ namespace smtp
 			void set_x_request_id(std::string_view  _id) noexcept;
 			
 		private:
-			void build_message();
+			void add_documents() noexcept;
+			void build_message() noexcept;
 			
 			CURL *curl{nullptr};
 			CURLcode res = CURLE_OK;
