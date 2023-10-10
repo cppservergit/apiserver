@@ -179,10 +179,10 @@ struct server
 		);
 	}
 
-	constexpr void sendError(http::request& req, const int status, std::string_view msg) 
+	constexpr void send_error(http::request& req, const int status, std::string_view msg) 
 	{
 		if (status == 400)
-			logger::log(LOGGER_SRC, "error", std::format("HTTP status: {} IP: {} description: Bad request - {}", status, req.remote_ip, req.errmsg));
+			logger::log(LOGGER_SRC, "error", std::format("HTTP status: {} IP: {} description: Bad request - {}", status, req.remote_ip, req.internals.errmsg));
 		
 		constexpr auto res {
 			"HTTP/1.1 {} {}\r\n"
@@ -239,13 +239,13 @@ struct server
 			req.response.set_body(std::format(R"({{"status": "INVALID", "validation":{{"id": "{}", "description": "{}"}}}})", "_dialog_", "err.accessdenied"));
 		} catch (const http::login_required_exception& e) { 
 			error_msg = e.what();
-			sendError(req, 401, "Unauthorized");
+			send_error(req, 401, "Unauthorized");
 		} catch (const http::resource_not_found_exception& e) { 
 			error_msg = e.what();
-			sendError(req, 404, "Resource not found");
+			send_error(req, 404, "Resource not found");
 		} catch (const http::method_not_allowed_exception& e) { 
 			error_msg = e.what();
-			sendError(req, 405, "Method not allowed"); 
+			send_error(req, 405, "Method not allowed"); 
 		} catch (const http::save_blob_exception& e) { 
 			error_msg = e.what();
 			req.response.set_body(R"({"status": "ERROR", "description": "Service error"})");
@@ -269,10 +269,10 @@ struct server
 
 		auto start = std::chrono::high_resolution_clock::now();
 
-		if (!req.errcode) {
+		if (!req.internals.errcode) {
 			process_request(req, api);
 		} else
-			sendError(req, 400, "Bad request");
+			send_error(req, 400, "Bad request");
 		
 		auto finish = std::chrono::high_resolution_clock::now();
 		std::chrono::duration <double>elapsed = finish - start;				
@@ -291,7 +291,7 @@ struct server
 		req.payload.append(data, bytes);
 		if (first_packet) {
 			req.parse();
-			if (req.method == "GET" || req.errcode ==  -1)
+			if (req.method == "GET" || req.internals.errcode ==  -1)
 				return true;
 		}
 		if (req.eof())
@@ -386,7 +386,7 @@ struct server
 	constexpr void epoll_abort_request(http::request& req) noexcept 
 	{
 		logger::log("epoll", "error", std::format("API not found: {}", req.path));
-		sendError(req, 404, "Resource not found");
+		send_error(req, 404, "Resource not found");
 		epoll_event event;
 		event.events = EPOLLOUT | EPOLLET | EPOLLRDHUP;
 		event.data.ptr = &req;

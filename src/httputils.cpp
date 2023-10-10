@@ -94,7 +94,7 @@ namespace
 	constexpr std::vector<std::string_view> parse_body(auto req) {
 		std::vector<std::string_view> vec;
 		std::string_view body {req->payload};
-		body = body.substr(req->bodyStartPos);
+		body = body.substr(req->internals.bodyStartPos);
 		const std::string delim{ "--" + req->boundary + "\r\n"};
 		const std::string end_delim{"--" + req->boundary + "--" + "\r\n"};
 		for (const auto& word : std::views::split(body, delim)) {
@@ -357,15 +357,15 @@ namespace http
 		headers.clear();
 		params.clear();
 		input_rules.clear();
-		errcode = 0;
-		errmsg = "";
+		internals.errcode = 0;
+		internals.errmsg = "";
+		internals.bodyStartPos = 0;
+		internals.contentLength = 0;
 		origin = "null";
 		queryString = "";
 		path = "";
 		boundary = "";
 		token = "";
-		bodyStartPos = 0;
-		contentLength = 0;
 		method = "";
 		isMultipart = false;
 		save_blob_failed = false;
@@ -425,8 +425,8 @@ namespace http
 
 	void request::set_parse_error(std::string_view msg)
 	{
-		errcode = -1;
-		errmsg  = msg;
+		internals.errcode = -1;
+		internals.errmsg  = msg;
 	}
 
 	bool request::parse_uri(line_reader& lr)
@@ -475,7 +475,7 @@ namespace http
 	{
 		constexpr auto msg {"Bad request -> invalid content length header: {} value: {}"};
 		try {
-			contentLength = std::stoul(value.data());
+			internals.contentLength = std::stoul(value.data());
 		} catch (const std::invalid_argument& e) {
 			set_parse_error(std::format(msg, e.what(), value));
 			return false;			
@@ -551,10 +551,10 @@ namespace http
 	void request::parse() 
 	{
 		std::string_view str{payload};
-		bodyStartPos = str.find("\r\n\r\n", 0) + 4;
-		line_reader lr(str.substr(0, bodyStartPos));
+		internals.bodyStartPos = str.find("\r\n\r\n", 0) + 4;
+		line_reader lr(str.substr(0, internals.bodyStartPos));
 	
-		if (bodyStartPos <= 4) {
+		if (internals.bodyStartPos <= 4) {
 			set_parse_error("Bad request -> no proper HTTP request found");
 			return;
 		}
@@ -565,8 +565,8 @@ namespace http
 		if (!parse_headers(lr))
 			return;
 
-		if (contentLength <= 0 && method == "POST") {
-			set_parse_error(std::format("Bad request -> invalid content length: {}", contentLength));
+		if (internals.contentLength <= 0 && method == "POST") {
+			set_parse_error(std::format("Bad request -> invalid content length: {}", internals.contentLength));
 			return;
 		}
 		
@@ -604,7 +604,7 @@ namespace http
 	
 	bool request::eof() 
 	{
-		if ( (payload.size() - bodyStartPos) == contentLength ) {
+		if ( (payload.size() - internals.bodyStartPos) == internals.contentLength ) {
 			if (method == "POST" && isMultipart) 
 				parse_form();
 			return true;
@@ -758,7 +758,7 @@ namespace http
 
 	std::string request::get_body() const noexcept
 	{
-		return payload.substr(bodyStartPos);
+		return payload.substr(internals.bodyStartPos);
 	}
 
 }

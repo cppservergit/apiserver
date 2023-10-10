@@ -144,6 +144,13 @@ namespace http
 		std::string data;
 	};
 
+	struct request_internals {
+		size_t bodyStartPos{0};
+		size_t contentLength{0};
+		int errcode{0};
+		std::string errmsg;
+	};
+
 	struct response_stream {
 	  public:	
 		explicit response_stream(int size) noexcept;
@@ -186,8 +193,7 @@ namespace http
 		int epoll_fd;
 		int fd;
 		std::string remote_ip;
-		size_t bodyStartPos{0};
-		size_t contentLength{0};
+		request_internals internals;
 		bool isMultipart{false};
 		bool save_blob_failed{false};
 		std::string method;
@@ -195,8 +201,6 @@ namespace http
 		std::string path;
 		std::string boundary;
 		std::string token;
-		int errcode{0};
-		std::string errmsg;
 		std::string origin{"null"};
 		std::string payload;
 		std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>> headers;
