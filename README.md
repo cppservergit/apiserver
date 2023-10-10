@@ -194,24 +194,25 @@ Run API-Server++
 Expected output:
 ```
 {"source":"signal","level":"info","msg":"signal interceptor registered"}
-{"source":"server","level":"info","msg":"registering built-in diagnostic and security services..."}
-{"source":"server","level":"info","msg":"registered (insecure) WebAPI for path: /api/ping"}
-{"source":"server","level":"info","msg":"registered (insecure) WebAPI for path: /api/version"}
-{"source":"server","level":"info","msg":"registered (insecure) WebAPI for path: /api/sysinfo"}
-{"source":"server","level":"info","msg":"registered (insecure) WebAPI for path: /api/metrics"}
-{"source":"server","level":"info","msg":"registered (insecure) WebAPI for path: /api/login"}
-{"source":"env","level":"info","msg":"port: 8080"}
-{"source":"env","level":"info","msg":"pool size: 4"}
-{"source":"env","level":"info","msg":"login log: 1"}
-{"source":"env","level":"info","msg":"http log: 1"}
-{"source":"server","level":"info","msg":"Pod: test PID: 9332 starting microserver-pgsql v1.0.0-20230807"}
-{"source":"server","level":"info","msg":"hardware threads: 4 GCC: 12.3.0"}
-{"source":"pool","level":"info","msg":"starting worker thread","thread":"139977899996736"}
-{"source":"pool","level":"info","msg":"starting worker thread","thread":"139977908389440"}
-{"source":"pool","level":"info","msg":"starting worker thread","thread":"139977891604032"}
-{"source":"epoll","level":"info","msg":"starting epoll FD: 4"}
-{"source":"epoll","level":"info","msg":"listen socket FD: 5 port: 8080"}
-{"source":"pool","level":"info","msg":"starting worker thread","thread":"139977816012352"}
+{"source":"server","level":"info","msg":"registering built-in diagnostic and security services...","thread":"140336593955712","x-request-id":""}
+{"source":"server","level":"info","msg":"registered (insecure) WebAPI for path: /api/ping","thread":"140336593955712","x-request-id":""}
+{"source":"server","level":"info","msg":"registered (insecure) WebAPI for path: /api/version","thread":"140336593955712","x-request-id":""}
+{"source":"server","level":"info","msg":"registered (insecure) WebAPI for path: /api/sysinfo","thread":"140336593955712","x-request-id":""}
+{"source":"server","level":"info","msg":"registered (insecure) WebAPI for path: /api/metrics","thread":"140336593955712","x-request-id":""}
+{"source":"server","level":"info","msg":"registered (insecure) WebAPI for path: /api/login","thread":"140336593955712","x-request-id":""}
+{"source":"env","level":"info","msg":"port: 8080","thread":"140336593955712","x-request-id":""}
+{"source":"env","level":"info","msg":"pool size: 4","thread":"140336593955712","x-request-id":""}
+{"source":"env","level":"info","msg":"login log: 0","thread":"140336593955712","x-request-id":""}
+{"source":"env","level":"info","msg":"http log: 0","thread":"140336593955712","x-request-id":""}
+{"source":"env","level":"info","msg":"jwt exp: 600","thread":"140336593955712","x-request-id":""}
+{"source":"server","level":"info","msg":"Pod: lunar PID: 4510 starting API-Server++ v1.0.5-20231009","thread":"140336593955712","x-request-id":""}
+{"source":"server","level":"info","msg":"hardware threads: 4 GCC: 13.1.0","thread":"140336593955712","x-request-id":""}
+{"source":"epoll","level":"info","msg":"starting epoll FD: 4","thread":"140336593955712","x-request-id":""}
+{"source":"epoll","level":"info","msg":"listen socket FD: 5 port: 8080","thread":"140336593955712","x-request-id":""}
+{"source":"pool","level":"info","msg":"starting worker thread","thread":"140336593942208","x-request-id":""}
+{"source":"pool","level":"info","msg":"starting worker thread","thread":"140336585549504","x-request-id":""}
+{"source":"pool","level":"info","msg":"starting worker thread","thread":"140336577156800","x-request-id":""}
+{"source":"pool","level":"info","msg":"starting worker thread","thread":"140336442939072","x-request-id":""}
 ```
 
 ## Test connection to API-Server++
@@ -323,8 +324,8 @@ make
 
 Expected output:
 ```
-g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -c src/main.cpp
-g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel env.o logger.o jwt.o httputils.o sql.o login.o server.o main.o -lpq -lcurl -lcrypto -o "apiserver"
+g++-13 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -c src/main.cpp
+g++-13 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel env.o logger.o jwt.o httputils.o sql.o login.o server.o main.o -lpq -lcurl -lcrypto -o "apiserver"
 ```
 
 Now run the server again:
@@ -615,8 +616,8 @@ make
 
 Expected output:
 ```
-g++-12 -Wno-unused-parameter -Wpedantic -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -c src/main.cpp
-g++-12 -Wno-unused-parameter -Wpedantic -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel env.o logger.o jwt.o httputils.o sql.o login.o server.o main.o -lpq -lcurl -lcrypto -o "apiserver"
+g++-13 -Wno-unused-parameter -Wpedantic -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -c src/main.cpp
+g++-13 -Wno-unused-parameter -Wpedantic -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel env.o logger.o jwt.o httputils.o sql.o login.o server.o main.o -lpq -lcurl -lcrypto -o "apiserver"
 ```
 
 Run the new version:
@@ -996,7 +997,7 @@ There is a separate branch of this project that instead of using the native Post
 
 For development purposes please install these packages:
 ```
-sudo apt install g++-12 libssl-dev libpq-dev libcurl4-openssl-dev uuid-dev libldap-dev unixodbc-dev tdsodbc make -y --no-install-recommends
+sudo apt install g++-13 libssl-dev libpq-dev libcurl4-openssl-dev uuid-dev libldap-dev unixodbc-dev tdsodbc make -y --no-install-recommends
 ```
 This command will also install [FreeTDS](https://www.freetds.org/index.html) ODBC driver for SQL Server and Sybase.
 
@@ -1072,8 +1073,6 @@ INSERT INTO testdb.dbo.s_user
 		('mcordova', 'sY1Y5lZMlyG12Kr0P4qQXOv2H50ycI63kft1e4pmoR4=', 'Martín Córdova', 'cppserver@martincordova.com'),
         ('mbencomo', 'BiumdlzR0xeh4VUSNmHkBXn5sFLnFG0VDBx/JcJsc5Y=', 'María Eugenia Bencomo', 'cppserver@martincordova.com');
 
-
-
 INSERT INTO testdb.dbo.s_role (rolename) VALUES
 	 ('sysadmin'),
 	 ('can_delete'),
@@ -1146,11 +1145,11 @@ In the case of `login.cpp` its current implementation is very simple, it depends
 	}
 ```
 
-The implementation of JWT (JSON Web Token) and the mechanism of checking authentication and authorization depends on the correct implementation of the login interface.
+The implementation of JWT (JSON Web Token) and the mechanism of checking authentication and authorization depend on the correct implementation of the login interface.
 
 #### Custom login implementations
 
-It is possible to change the implementation of the `bind()` function if you are not using hashed passwords that can be generated via SQL functions (like in this default implementation), maybe you are using BCrypt or something similar, the modifications are simple and we can provide support, just open an issue on GitHub. In the specific case of BCrypt, we already have a login implementation using a C-compiled library for BCrypt.
+It is possible to change the implementation of the `bind()` function if you are not using hashed passwords that can be generated via SQL functions (like in this default implementation), maybe you are using BCrypt or something similar, and the modifications are simple and we can provide support, just open an issue on GitHub. In the specific case of BCrypt, we already have a login implementation using a C-compiled library for BCrypt.
 
 Example using a custom `bind()` implementation and a modified stored procedure that will also return the encrypted password from the s_user table, then it will be verified using BCrypt algorithm:
 ```
