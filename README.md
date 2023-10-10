@@ -50,11 +50,11 @@ It does use the native PostgreSQL client C API `libpq` for maximum speed, as wel
 
 ## Requirements
 
-The test environment is Ubuntu 22.04 with GCC 12.3, We used Canonical's Multipass VMs on Windows 10 Pro, it's a very agile tool for managing lightweight VMs on Windows, you can create an Unuto 22.04 VM using a command like this, with very few resources:
+The test environment is Ubuntu 23.04 with GCC 13.1, We used Canonical's Multipass VMs on Windows 10 Pro, it's a very agile tool for managing lightweight VMs on Windows, you can create an Ubuntu 23.04 VM using a command like this, with very few resources:
 ```
-multipass launch -n testvm -c 4 -m 2g -d 6g
+multipass launch -n testvm -c 4 -m 2g -d 6g lunar
 ```
-If you are not going to update the whole operating system then you can use `-d 4g`, only 4GB of disk.
+If you are not going to update the whole operating system then you can use `-d 4g` for 4GB of disk space.
 
 Update Ubuntu package list:
 ```
@@ -63,7 +63,7 @@ sudo apt update
 
 Install required packages:
 ```
-sudo apt install g++-12 libssl-dev libpq-dev libcurl4-openssl-dev uuid-dev libldap-dev make -y --no-install-recommends
+sudo apt install g++-13 libssl-dev libpq-dev libcurl4-openssl-dev uuid-dev libldap-dev make -y --no-install-recommends
 ```
 
 Optionally, you can upgrade the rest of the operating system, it may take some minutes and require a restart of the VM:
@@ -71,7 +71,7 @@ Optionally, you can upgrade the rest of the operating system, it may take some m
 sudo apt upgrade -y
 ```
 
-__Note__: You can use GCC-13 too if you have it installed, for Ubuntu 23.04 you can use "apt install g++-13". You will have to edit Makefile to change the compiler name.
+__Note__: You can run API server on Ubuntu 22.04 if you create a native Linux LXD container with Ubuntu 23.04 to run APIServer binary and use HAProxy as the HTTPS front on Ubuntu 22.04 (the server host OS). More on this later.
 
 ### PostgreSQL testdb setup
 
@@ -123,15 +123,15 @@ make
 
 Expected output:
 ```
-g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -c src/env.cpp
-g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -c src/logger.cpp
-g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -c src/jwt.cpp
-g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -c src/httputils.cpp
-g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -c src/sql.cpp
-g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -c src/login.cpp
-g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -DCPP_BUILD_DATE=20230807 -c src/server.cpp
-g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -c src/main.cpp
-g++-12 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel env.o logger.o jwt.o httputils.o sql.o login.o server.o main.o -lpq -lcurl -lcrypto -luuid -o "apiserver"
+g++-13 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -c src/env.cpp
+g++-13 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -c src/logger.cpp
+g++-13 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -c src/jwt.cpp
+g++-13 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -c src/httputils.cpp
+g++-13 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -c src/sql.cpp
+g++-13 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -c src/login.cpp
+g++-13 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -DCPP_BUILD_DATE=20230807 -c src/server.cpp
+g++-13 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -c src/main.cpp
+g++-13 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel env.o logger.o jwt.o httputils.o sql.o login.o server.o main.o -lpq -lcurl -lcrypto -luuid -o "apiserver"
 ```
 
 ## Run API-Server++
