@@ -43,7 +43,7 @@ API-Server++ is a compact single-threaded epoll HTTP 1/1 microserver, for servin
 
 API-Server++ was designed to be run as a container on Kubernetes, with a stateless security/session model based on JSON web token (good for scalability), and built-in observability features for Grafana stack, but it can be run as a regular program on a terminal or as a SystemD Linux service, on production it will run behind an Ingress or Load Balancer providing TLS and Layer-7 protection.
 
-It does use the native PostgreSQL client C API `libpq` for maximum speed, as well as `libcurl` for secure email and openssl v3 for JWT signatures. It expects a JSON response from queries returning data, which is very easy to do using PostgreSQL functions.
+It uses the native PostgreSQL client C API `libpq` for maximum speed, as well as `libcurl` for secure email and openssl v3 for JWT signatures. It expects a JSON response from queries returning data, which is very easy to do using PostgreSQL functions.
 
 ![webapi helloworld](https://github.com/cppservergit/apiserver/assets/126841556/40fcc7fb-533e-429e-aea0-d87923f58a01)
 
@@ -71,7 +71,10 @@ Optionally, you can upgrade the rest of the operating system, it may take some m
 sudo apt upgrade -y
 ```
 
-__Note__: You can run API server on Ubuntu 22.04 if you create a native Linux LXD container with Ubuntu 23.04 to run APIServer binary and use HAProxy as the HTTPS front on Ubuntu 22.04 (the server host OS). More on this later.
+__Note__: You can run API server on Ubuntu 22.04 if you create a native Linux LXD container with Ubuntu 23.04 to run APIServer binary and use HAProxy as the HTTPS front on Ubuntu 22.04 (the server host OS).
+
+![image](https://github.com/cppservergit/apiserver/assets/126841556/9fd9ec17-85ba-4910-a090-02c62857f8b2)
+
 
 ### PostgreSQL testdb setup
 
