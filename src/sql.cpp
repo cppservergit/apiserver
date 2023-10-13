@@ -23,7 +23,7 @@ namespace
 	}
 
 	void dbclose(PGconn* conn) {
-		logger::log(LOGGER_SRC, "debug", std::format("closing database {:#010x}", reinterpret_cast<intptr_t>(conn)));
+		logger::log(LOGGER_SRC, "debug", std::format("closing database {:#010x}", std::bit_cast<intptr_t>(conn)));
 		if (conn) 
 			PQfinish(conn);
 	}
@@ -41,7 +41,7 @@ namespace
 			dbconnstr{_connstr}, 
 			conn{PQconnectdb(dbconnstr.c_str()), &dbclose}
 		{
-			logger::log(LOGGER_SRC, "debug", std::format("connecting to {} {:#010x}", name, reinterpret_cast<intptr_t>(conn.get())));
+			logger::log(LOGGER_SRC, "debug", std::format("connecting to {} {:#010x}", name, std::bit_cast<intptr_t>(conn.get())));
 			if (PQstatus(conn.get()) != CONNECTION_OK)
 				logger::log(LOGGER_SRC, "error", std::format("cannot connect to database -> {}: {}", name, get_error(conn.get())));
 		}
