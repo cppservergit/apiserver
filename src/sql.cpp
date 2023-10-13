@@ -56,46 +56,22 @@ namespace
 	struct dbutil 
 	{
 		
-		std::string m_dbconnstr;
+		std::string name;
+		std::string dbconnstr;
 		SQLHENV henv = SQL_NULL_HENV;
 		SQLHDBC hdbc = SQL_NULL_HDBC;
 		SQLHSTMT hstmt = SQL_NULL_HSTMT;
 				
 		dbutil() = default;
-		dbutil(dbutil &&source) = delete;
-		dbutil(const dbutil &source) = delete;
-		dbutil& operator =(const dbutil& source) = delete;
-		dbutil& operator=(dbutil&& source) = delete;
-		
-		explicit dbutil(const std::string& conn_info) noexcept: m_dbconnstr{conn_info}
+	
+		explicit dbutil(std::string_view _name, std::string_view _connstr) noexcept: name{_name}, dbconnstr{_connstr}
 		{
-			RETCODE rc {SQL_SUCCESS};
-			rc = SQLAllocHandle ( SQL_HANDLE_ENV, SQL_NULL_HANDLE, &henv );
-			if ( rc != SQL_SUCCESS ) {
-				logger::log(LOGGER_SRC, "error", "SQLAllocHandle failed", true);
-			}
-
-			rc = SQLSetEnvAttr(henv, SQL_ATTR_ODBC_VERSION, (SQLPOINTER)SQL_OV_ODBC3 , 0 );
-			if ( rc != SQL_SUCCESS ) {
-				logger::log(LOGGER_SRC, "error", "SQLSetEnvAttr failed to set ODBC version", true);
-			}
-
-			SQLCHAR* dsn = (SQLCHAR*)m_dbconnstr.c_str();
-			SQLSMALLINT bufflen;
-			rc = SQLAllocHandle (SQL_HANDLE_DBC, henv, &hdbc);
-		
-			rc = SQLDriverConnect(hdbc, NULL, dsn, SQL_NTS, NULL, 0, &bufflen, SQL_DRIVER_NOPROMPT);
-			if (rc!=SQL_SUCCESS && rc!=SQL_SUCCESS_WITH_INFO) {
-				auto [error, sqlstate] {get_error_msg(henv, hdbc, hstmt)};
-				logger::log(LOGGER_SRC, "error", "SQLDriverConnect failed: $1", {error}, true);
-			}
-
-			rc = SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hstmt);
+			connect();
 		}
 		
-		~dbutil() {
+		constexpr void close() {
 			if (henv) {
-				logger::log(LOGGER_SRC, "debug", "releasing odbc resources", true);
+				logger::log(LOGGER_SRC, "debug", std::format("closing odbc connection: {}", name) );
 				SQLFreeHandle(SQL_HANDLE_STMT, hstmt);
 				SQLDisconnect(hdbc);
 				SQLFreeHandle(SQL_HANDLE_DBC, hdbc);
@@ -103,35 +79,38 @@ namespace
 			}
 		}
 	
-		void reset_connection()
+		constexpr void reset_connection()
 		{
-			logger::log(LOGGER_SRC, "warn", "resetting odbc connection", true);
-			SQLFreeHandle(SQL_HANDLE_STMT, hstmt);
-			SQLDisconnect(hdbc);
-			SQLFreeHandle(SQL_HANDLE_DBC, hdbc);
-			SQLFreeHandle( SQL_HANDLE_ENV, henv );
+			logger::log(LOGGER_SRC, "warn", std::format("resetting odbc connection: {}", name));
+			close();
+			connect();
+		}
+		
+	private:
+		constexpr void connect()
+		{
 			RETCODE rc {SQL_SUCCESS};
 			rc = SQLAllocHandle ( SQL_HANDLE_ENV, SQL_NULL_HANDLE, &henv );
 			if ( rc != SQL_SUCCESS ) {
-				logger::log(LOGGER_SRC, "error", "SQLAllocHandle failed", true);
+				logger::log(LOGGER_SRC, "error", "SQLAllocHandle failed");
 			}
 
 			rc = SQLSetEnvAttr(henv, SQL_ATTR_ODBC_VERSION, (SQLPOINTER)SQL_OV_ODBC3 , 0 );
 			if ( rc != SQL_SUCCESS ) {
-				logger::log(LOGGER_SRC, "error", "SQLSetEnvAttr failed to set ODBC version", true);
+				logger::log(LOGGER_SRC, "error", "SQLSetEnvAttr failed to set ODBC version");
 			}
 
-			SQLCHAR* dsn = (SQLCHAR*)m_dbconnstr.c_str();
+			SQLCHAR* dsn = (SQLCHAR*)dbconnstr.c_str();
 			SQLSMALLINT bufflen;
 			rc = SQLAllocHandle (SQL_HANDLE_DBC, henv, &hdbc);
 		
 			rc = SQLDriverConnect(hdbc, NULL, dsn, SQL_NTS, NULL, 0, &bufflen, SQL_DRIVER_NOPROMPT);
 			if (rc!=SQL_SUCCESS && rc!=SQL_SUCCESS_WITH_INFO) {
 				auto [error, sqlstate] {get_error_msg(henv, hdbc, hstmt)};
-				logger::log(LOGGER_SRC, "error", "SQLDriverConnect failed: $1", {error}, true);
+				logger::log(LOGGER_SRC, "error", std::format("SQLDriverConnect failed: {}", error));
 			}
 
-			rc = SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hstmt);				
+			rc = SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hstmt);			
 		}
 	
 	};
@@ -149,10 +128,8 @@ namespace
 				for ( auto& col: cols ) {
 					if (col.dataSize > 0) {
 						rec.try_emplace(col.colname, reinterpret_cast<char*>(&col.data[0]));
-						//rec[col.colname] = reinterpret_cast<char*>(&col.data[0]);
 					} else {
 						rec.try_emplace(col.colname, "");
-						//rec[col.colname] = "";
 					}
 				}
 				rs.push_back(rec);
@@ -191,36 +168,71 @@ namespace
 	    json.append("]");
 	}
 
-	dbutil& getdb(const std::string& dbname, bool reset = false)
+	struct dbconns {
+		constexpr static int MAX_CONNS {5};
+		std::array<dbutil, MAX_CONNS> conns;
+		int index {0};
+		dbutil nulldb;
+
+		constexpr auto get(std::string_view name, bool reset = false) noexcept
+		{
+			for (auto& db: conns) 
+				if (db.name == name) {
+					if (reset)
+						db.reset_connection();
+					return std::make_pair(true, &db);
+				}
+			return std::make_pair(false, &nulldb);
+		}
+
+		constexpr dbutil& add(std::string_view name, std::string_view connstr)
+		{
+			if (index == MAX_CONNS)
+				throw sql::database_exception(std::format("dbconns::add() -> no more than {} database connections allowed: {}", MAX_CONNS, name));
+			
+			conns[index] = dbutil(name, connstr);
+			++index;
+			return conns[index - 1];
+		}
+		
+		constexpr void close_all()
+		{
+			for (auto& db: conns) 
+				if (!db.name.empty()) 
+					db.close();
+		}
+	};
+
+
+	constexpr dbutil& getdb(const std::string_view name, bool reset = false, bool close = false)
 	{
-		thread_local std::unordered_map<std::string, dbutil, util::string_hash, std::equal_to<>> dbconns;
-		if (!dbconns.contains(dbname)) {
-			std::string connstr{env::get_str(dbname)};
-			if (!connstr.empty()) {
-				auto [iter, success] = dbconns.try_emplace(dbname, connstr);
-				return iter->second;
-			} else {
-				throw sql::database_exception(logger::format("getdb() -> invalid dbname: $1", {dbname}));
-			}
+	    thread_local dbconns dbc;
+		
+		if (close) {
+			dbc.close_all();
+			return dbc.nulldb;
+		}
+		
+		if (auto [result, db]{dbc.get(name, reset)}; result) {
+			return *db;
 		} else {
-			if (reset)
-				dbconns[dbname].reset_connection();
-			return dbconns[dbname];
+			auto connstr {env::get_str(name.data())};
+			return dbc.add(name, connstr);
 		}
 	}
-	
+
 	inline void retry(RETCODE rc, const std::string& dbname, dbutil& db, int& retries, const std::string& sql)
 	{
 		auto [error, sqlstate] {get_error_msg(db.henv, db.hdbc, db.hstmt)};
 		if (sqlstate == "01000" || sqlstate == "08S01" || rc == SQL_INVALID_HANDLE) {
 			if (retries == max_retries) {
-				throw sql::database_exception(logger::format("retry() -> cannot connect to database:: $1", {dbname}));
+				throw sql::database_exception(std::format("retry() -> cannot connect to database:: {}", dbname));
 			} else {
 				retries++;
 				getdb(dbname, true);
 			}
 		} else {
-			throw sql::database_exception(logger::format("db_exec() $1 -> sql: $2", {error, sql}));
+			throw sql::database_exception(std::format("db_exec() {} -> sql: {}", error, sql));
 		}
 	}	
 	
@@ -245,6 +257,12 @@ namespace
 
 namespace sql 
 {
+	//close all database connections for this thread
+	void close()
+	{
+		getdb("", false, true);
+	}	
+	
 	bool has_rows(const std::string& dbname, const std::string& sql)
 	{
 		return db_exec<bool>(dbname, sql, [](SQLHSTMT hstmt) {

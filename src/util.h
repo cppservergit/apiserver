@@ -1,9 +1,8 @@
 #ifndef UTIL_H_
 #define UTIL_H_
 
-#include <iomanip>
 #include <chrono>
-#include <sstream>
+#include <format>
 
 namespace util
 {

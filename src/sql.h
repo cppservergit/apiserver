@@ -47,6 +47,7 @@ namespace sql
 	void exec_sql(const std::string& dbname, const std::string& sql);
 	bool has_rows(const std::string& dbname, const std::string &sql);
 	record get_record(const std::string& dbname, const std::string& sql);
+	void close();
 }
 
 #endif /* SQLODBC_H_ */

@@ -78,12 +78,12 @@ namespace
 	  return out;
 	}
 
-	std::string sign(std::string_view message, const std::string& secret) 
+	std::string sign(std::string_view message, std::string_view secret) 
 	{
 		std::vector<unsigned char> msg {message.begin(), message.end()};
 		std::vector<unsigned char> signature_bytes(EVP_MAX_MD_SIZE);
 		unsigned int signature_length {0};
-		HMAC(EVP_sha256(), secret.c_str(), secret.size(), msg.data(), msg.size(), signature_bytes.data(), &signature_length);
+		HMAC(EVP_sha256(), secret.data(), secret.size(), msg.data(), msg.size(), signature_bytes.data(), &signature_length);
 		signature_bytes.erase(signature_bytes.begin() + signature_length, signature_bytes.end());
 		return base64_encode(signature_bytes);
 	}
@@ -140,17 +140,6 @@ namespace
 		return jwt::user_info {std::string(login), std::string(mail), std::string(roles), std::stol(std::string(exp))};
 	}
 	
-	std::string create_payload(std::string_view userlogin, std::string_view mail, std::string_view roles, const time_t& now) noexcept
-	{
-		const auto exp {std::to_string(now)};
-		std::string fmt {R"({"login":"$login","mail":"$mail","roles":"$roles","exp":$exp})"};
-		fmt.replace(fmt.find("$login"), 6, userlogin);
-		fmt.replace(fmt.find("$mail"), 5, mail);
-		fmt.replace(fmt.find("$roles"), 6, roles);
-		fmt.replace(fmt.find("$exp"), 4, exp);
-		return fmt;
-	}
-	
 }
 
 namespace jwt
@@ -160,7 +149,7 @@ namespace jwt
 		static jwt_config config;
 		const time_t now {std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) + config.duration}; 
 		const std::string json_header {R"({"alg":"HS256","typ":"JWT"})"};
-		const std::string json_payload {create_payload(username, mail, roles, now)};
+		const std::string json_payload {std::format(R"({{"login":"{}","mail":"{}","roles":"{}","exp":{}}})", username, mail, roles, now)};
 		std::string buffer {base64_encode(json_header) + "." + base64_encode(json_payload)};
 		auto signature {sign(buffer, config.secret)};
 		return buffer.append(".").append(signature);
@@ -171,7 +160,7 @@ namespace jwt
 		static jwt_config config;
 		auto jt {parse(token)};
 		if (const std::string test{jt.header_encoded + "." + jt.payload_encoded}; jt.signature != sign(test, config.secret)) {
-			logger::log(LOGGER_SRC, "warning", "invalid signature", true);
+			logger::log(LOGGER_SRC, "warning", "invalid signature");
 			return std::make_pair(false, user_info());
 		}
 		auto user {parse_payload(jt.payload)};
@@ -180,6 +169,5 @@ namespace jwt
 			return std::make_pair(true, user);
 		else 
 			return std::make_pair(false, user_info());
-		
 	}
 }

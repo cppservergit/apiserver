@@ -10,9 +10,7 @@
 #ifndef EMAIL_H_
 #define EMAIL_H_
 
-extern "C" {
-	#include <curl/curl.h>
-}
+#include <curl/curl.h>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -20,6 +18,8 @@ extern "C" {
 #include <iomanip>
 #include <sstream>
 #include <array>
+#include <format>
+#include <chrono>
 #include "logger.h"
 #include "httputils.h"
 
@@ -28,12 +28,6 @@ namespace smtp
 	struct mail
 	{
 			explicit mail(const std::string& server, const std::string& user, const std::string& pwd);
-			mail() = delete;
-			mail(const mail&) = delete;
-			mail(mail&&) = delete;
-			mail& operator=(const mail&) = delete;
-			mail& operator=(mail&& other) = delete;
-			~mail();
 			void send() noexcept;
 			void add_attachment(const std::string& path, const std::string& filename, const std::string& encoding = "base64" ) noexcept;
 			void add_attachment(const std::string& path) noexcept;
@@ -46,12 +40,16 @@ namespace smtp
 			void set_x_request_id(std::string_view  _id) noexcept;
 			
 		private:
+			void add_documents() noexcept;
+			void build_message() noexcept;
+			
 			CURL *curl{nullptr};
 			CURLcode res = CURLE_OK;
 			struct curl_slist *headers = nullptr;
 			struct curl_slist *recipients = nullptr;
 			curl_mime *mime;
-			curl_mimepart *part;			
+			curl_mimepart *part;
+			
 			std::string server_url;
 			std::string username;
 			std::string password;
