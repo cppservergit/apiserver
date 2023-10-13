@@ -1,7 +1,7 @@
 SHELL=bash
 DATE=$(shell printf '%(%Y%m%d)T')
 CC=g++-13
-CC_OPTS=-Wall -Wextra -O3 -std=c++23 -pthread -flto=4 -fno-extern-tls-init -march=native -mtune=intel
+CC_OPTS=-Wall -Wextra -O3 -std=c++23 -pthread -flto=4 -fno-extern-tls-init -march=x86-64 -mtune=intel
 CC_LIBS=-lpq -lcurl -lcrypto -luuid
 CC_OBJS=env.o logger.o jwt.o httputils.o email.o sql.o login.o util.o main.o
 
