@@ -100,7 +100,7 @@ constexpr auto consumer = [](std::stop_token tok, auto srv) noexcept
 		srv->m_queue.pop();
 		lock.unlock();
 		
-		//---run task
+		//run task
 		srv->http_server(params.req, params.api);
 		
 		epoll_event event;
@@ -110,7 +110,6 @@ constexpr auto consumer = [](std::stop_token tok, auto srv) noexcept
 	}
 	
 	//ending task - free resources
-	sql::close();
 	logger::log("pool", "info", "stopping worker thread");
 };	
 
@@ -233,10 +232,10 @@ struct server
 				execute_service(req, api); //run lambda
 		} catch (const http::invalid_input_exception& e) { 
 			error_msg = e.what();
-			req.response.set_body(std::format(R"({{"status": "INVALID", "validation": {{"id": "{}", "description": "{}"}}}})", e.get_field_name(), e.get_error_description()));
+			req.response.set_body(std::format(R"({{"status":"INVALID","validation":{{"id":"{}","description":"{}"}}}})", e.get_field_name(), e.get_error_description()));
 		} catch (const http::access_denied_exception& e) { 
 			error_msg = e.what();
-			req.response.set_body(std::format(R"({{"status": "INVALID", "validation":{{"id": "{}", "description": "{}"}}}})", "_dialog_", "err.accessdenied"));
+			req.response.set_body(std::format(R"({{"status":"INVALID","validation":{{"id":"{}","description":"{}"}}}})", "_dialog_", "err.accessdenied"));
 		} catch (const http::login_required_exception& e) { 
 			error_msg = e.what();
 			send_error(req, 401, "Unauthorized");
@@ -248,10 +247,10 @@ struct server
 			send_error(req, 405, "Method not allowed"); 
 		} catch (const http::save_blob_exception& e) { 
 			error_msg = e.what();
-			req.response.set_body(R"({"status": "ERROR", "description": "Service error"})");
+			req.response.set_body(R"({"status":"ERROR","description":"Service error"})");
 		} catch (const sql::database_exception& e) { 
 			error_msg = e.what();
-			req.response.set_body(R"({"status": "ERROR", "description": "Service error"})");
+			req.response.set_body(R"({"status":"ERROR","description":"Service error"})");
 		}
 		if (!error_msg.empty())
 			logger::log("service", "error", std::format("{}, {}", req.path, error_msg));
@@ -438,7 +437,7 @@ struct server
 		}
 	}
 
-	constexpr void epoll_handle_IO(epoll_event& ev, auto& data) noexcept
+	constexpr void epoll_handle_IO(epoll_event& ev, std::array<char, 8192>& data) noexcept
 	{
 		if (ev.data.ptr == nullptr) {
 			logger::log("epoll", "error", "epoll_handle_IO() - epoll data ptr is null");
@@ -456,7 +455,6 @@ struct server
 		std::array<char, 8192> data;
 		constexpr int MAXEVENTS = 64;
 		std::array<epoll_event, MAXEVENTS> events;
-		bool exit_loop {false};
 
 		while (true)
 		{
@@ -469,9 +467,8 @@ struct server
 				}
 				else if (m_signal == events[i].data.fd) //shutdown
 				{
-					logger::log("signal", "info", std::format("stop signal received for epoll FD: {} SFD: {}", epoll_fd, m_signal));
-					exit_loop = true;
-					break;
+					logger::log("signal", "info", "stop signal received via epoll");
+					return;
 				}
 				else if (listen_fd == events[i].data.fd) // new connection.
 				{
@@ -482,8 +479,6 @@ struct server
 					epoll_handle_IO(events[i], data);
 				}
 			}
-			if (exit_loop)
-				break;
 		}		
 	}
 

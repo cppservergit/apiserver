@@ -22,38 +22,40 @@ namespace
 		return msg;
 	}
 
+	void dbclose(PGconn* conn) {
+		logger::log(LOGGER_SRC, "debug", std::format("closing database {:#010x}", reinterpret_cast<intptr_t>(conn)));
+		if (conn) 
+			PQfinish(conn);
+	}
+
 	struct dbutil 
 	{
 		std::string name;
 		std::string dbconnstr;
-		PGconn* conn{nullptr};
+		std::unique_ptr<PGconn, decltype(&dbclose)> conn;
 
-		dbutil() = default;
+		dbutil(): name{"null"}, conn{nullptr, &dbclose} {}
 	
-		explicit dbutil(std::string_view _name, std::string_view _connstr) noexcept: name{_name}, dbconnstr{_connstr}
+		explicit dbutil(std::string_view _name, std::string_view _connstr) noexcept: 
+			name{_name}, 
+			dbconnstr{_connstr}, 
+			conn{PQconnectdb(dbconnstr.c_str()), &dbclose}
 		{
-			logger::log(LOGGER_SRC, "debug", std::format("dbutil() -> connecting to {}", name));
-			conn = PQconnectdb(dbconnstr.c_str());
-			if (PQstatus(conn) != CONNECTION_OK)
-				logger::log(LOGGER_SRC, "error", std::format("dbutil() -> {}: {}", name, get_error(conn)));
+			logger::log(LOGGER_SRC, "debug", std::format("connecting to {} {:#010x}", name, reinterpret_cast<intptr_t>(conn.get())));
+			if (PQstatus(conn.get()) != CONNECTION_OK)
+				logger::log(LOGGER_SRC, "error", std::format("cannot connect to database -> {}: {}", name, get_error(conn.get())));
 		}
 
-		constexpr void close() {
-			logger::log(LOGGER_SRC, "debug", std::format("dbutil::close() -> closing database: {}", name));
-			if (conn) 
-				PQfinish(conn);
-		}
-		
 		constexpr void reset_connection() noexcept
 		{
-			if ( PQstatus(conn) == CONNECTION_BAD ) {
-				logger::log(LOGGER_SRC, "warn", std::format("reset_connection() -> connection to database {} no longer valid, reconnecting... ", PQdb(conn)));
-				PQfinish(conn);
-				conn = PQconnectdb(dbconnstr.c_str());
-				if (PQstatus(conn) != CONNECTION_OK)
-					logger::log(LOGGER_SRC, "error", std::format("reset_connection() -> error reconnecting to database {}: {}", PQdb(conn), get_error(conn)));
+			if ( PQstatus(conn.get()) == CONNECTION_BAD ) {
+				logger::log(LOGGER_SRC, "warn", std::format("reset_connection() -> connection to database {} no longer valid, reconnecting... ", PQdb(conn.get())));
+				PQfinish(conn.get());
+				conn.reset(PQconnectdb(dbconnstr.c_str()));
+				if (PQstatus(conn.get()) != CONNECTION_OK)
+					logger::log(LOGGER_SRC, "error", std::format("reset_connection() -> error reconnecting to database {}: {}", PQdb(conn.get()), get_error(conn.get())));
 				else
-					logger::log(LOGGER_SRC, "info", std::format("reset_connection() -> connection to database {} restored", PQdb(conn)));
+					logger::log(LOGGER_SRC, "info", std::format("reset_connection() -> connection to database {} restored", PQdb(conn.get())));
 			}
 		}
 	};
@@ -69,7 +71,7 @@ namespace
 				if (db.name == name) {
 					if (reset)
 						db.reset_connection();
-					return std::make_pair(true, db.conn);
+					return std::make_pair(true, db.conn.get());
 				}
 			return std::make_pair(false, nullptr);
 		}
@@ -78,29 +80,16 @@ namespace
 		{
 			if (index == MAX_CONNS)
 				throw sql::database_exception(std::format("dbconns::add() -> no more than {} database connections allowed: {}", MAX_CONNS, name));
-			
 			conns[index] = dbutil(name, connstr);
 			++index;
-			return conns[index - 1].conn;
+			return conns[index - 1].conn.get();
 		}
-		
-		constexpr void close_all()
-		{
-			for (auto& db: conns) 
-				if (!db.name.empty()) 
-					db.close();
-		}
+
 	};
 
-	constexpr PGconn* getdb(const std::string_view name, bool reset = false, bool close = false)
+	constexpr PGconn* getdb(const std::string_view name, bool reset = false)
 	{
 	    thread_local dbconns dbc;
-		
-		if (close) {
-			dbc.close_all();
-			return nullptr;
-		}
-		
 		if (auto [result, conn]{dbc.get(name, reset)}; result) {
 			return conn;
 		} else {
@@ -120,7 +109,7 @@ namespace
 			}
 		} else {
 			throw sql::database_exception(std::format("db_exec() {} -> sql: {}", get_error(conn), sql));
-		}		
+		}
 	}
 
 	template<typename T, class FN>
@@ -143,12 +132,6 @@ namespace
 
 namespace sql 
 {
-	//close all database connections for this thread
-	void close()
-	{
-		getdb("", false, true);
-	}
-	
 	//executes a query that doesn't return rows (data modification query)
 	void exec_sql(const std::string& dbname, const std::string& sql)
 	{
@@ -193,7 +176,7 @@ namespace sql
 		return db_exec<std::string>(dbname, sql, [](PGresult *res) {
 				std::string json {R"({"status":"EMPTY"})"};
 				if (PQntuples(res) && !PQgetisnull(res, 0, 0)) 
-					json = std::format(R"({{"status":"OK", "data":{}}})", PQgetvalue(res, 0, 0));
+					json = std::format(R"({{"status":"OK","data":{}}})", PQgetvalue(res, 0, 0));
 				PQclear(res);
 				return json;
 		});
