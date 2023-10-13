@@ -964,7 +964,7 @@ src/server.cpp:455:  [1] (buffer) read:
   (CWE-120, CWE-20).
 ```
 
-The first two mention code related to reading environment variables, which in the case of API-Server++ is an unavoidable task and are always supplied by a system administrator, on Kubernetes some of them would be Secrets, so they are mostly safe to read, and the code used to read the variables takes care of safe type conversion and nullptr checks, example:
+The first two mention code related to reading environment variables, which in the case of API-Server++ is an unavoidable task and is always supplied by a system administrator, when using Kubernetes some of them would be Secrets, so they are safe to read, and the code used to read the variables takes care of safe type conversion and `nullptr` checks, example:
 
 ```
 	unsigned short int env_vars::read_env(const char* name, unsigned short int default_value) noexcept
@@ -1103,48 +1103,51 @@ begin
 	SET @encodedpwd = (select hashbytes('SHA2_256', @pwd) FOR XML PATH(''), BINARY BASE64);
 	set nocount on
 	
-	select mail, displayname, rolenames from testdb.dbo.s_user WITH (NOLOCK), #roles where
+	select mail as email, displayname, rolenames from testdb.dbo.s_user WITH (NOLOCK), #roles where
 	userlogin = @userlogin and passwd = @encodedpwd
 
-end;
+end
+;
 ```
+The SQL objects shown above are equivalent to the PostgreSQL `TestDB` sample database.
 
 ### The login module
 
-The `login.h` and `login.cpp` modules in the odbc branch are specific for ODBC, as well as the `sql.h` and `sql.cpp`, but the interfaces defined in the namespaces login:: and sql:: are the same, so the rest of the code won´t be affected by different implementations.
+The `login.cpp` module in the odbc branch is almost the same as the one in the master (PostgreSQL) branch, only the SQL for calling the stored procedure CPP_DBLOGIN changes. The modules `sql.h` and `sql.cpp` are specific for this ODBC branch, but the API is very similar to those in the master branch, in fact the ODBC module is a superset, with very few additional functions declared in `sql.h` and implemented in `sql.cpp`, the interface defined in the namespace sql:: is basically the same for both branches, the code implementing WebAPIs won't "feel" the difference.
 
 ```
 namespace login
 {
-	bool bind(const std::string& login, const std::string& password);
-	std::string get_email() noexcept;
-	std::string get_display_name() noexcept;
-	std::string get_roles() noexcept;
+	struct login_result
+	{
+		public:
+			login_result(bool _result, const std::string& _name, const std::string& _mail,const std::string& _roles) noexcept;
+			std::string get_email() const noexcept;
+			std::string get_display_name() const noexcept;
+			std::string get_roles() const noexcept;
+			bool ok() const noexcept;
+		private:
+			bool result;
+			std::string display_name;
+			std::string email;
+			std::string roles;
+	};	
+	login_result bind(const std::string& login, const std::string& password);
 }
 ```
-Even the `loginldap` module implements the same interface.
+Any variant of the login mechanism, like `loginldap` module, must implement the same interface.
 
 In the case of `login.cpp` its current implementation is very simple, it depends on the expected behavior of the `cpp_dblogin` stored procedure:
 ```
 	//login and password must be pre-processed for sql-injection protection
 	//expects a resultset with these columns: mail, displayname, rolenames
-	bool bind(const std::string& login, const std::string& password)
+	login_result bind(const std::string& login, const std::string& password)
 	{
-		bool flag{false};
-		m_user.email.clear(); 
-		m_user.display_name.clear();
-		m_user.roles.clear();
-		std::string hashed_pwd;
-		std::string sql {"execute cpp_dblogin '" + login + "', '" + password + "'"};
-		
-		auto rec {sql::get_record("LOGINDB", sql)};
-		if ( rec.size() ) {
-			m_user.email = rec["mail"];
-			m_user.display_name = rec["displayname"];
-			m_user.roles = rec["rolenames"];
-			flag = true;
-		}
-		return flag;
+		std::string sql {std::format("execute cpp_dblogin '{}', '{}'", login, password)};
+		if (auto rec {sql::get_record("CPP_LOGINDB", sql)}; !rec.empty()) {
+			return login_result {true, rec["displayname"], rec["email"], rec["rolenames"]};
+		} else
+			return login_result{false, "", "", ""};
 	}
 ```
 
@@ -1152,36 +1155,7 @@ The implementation of JWT (JSON Web Token) and the mechanism of checking authent
 
 #### Custom login implementations
 
-It is possible to change the implementation of the `bind()` function if you are not using hashed passwords that can be generated via SQL functions (like in this default implementation), maybe you are using BCrypt or something similar, and the modifications are simple and we can provide support, just open an issue on GitHub. In the specific case of BCrypt, we already have a login implementation using a C-compiled library for BCrypt.
-
-Example using a custom `bind()` implementation and a modified stored procedure that will also return the encrypted password from the s_user table, then it will be verified using BCrypt algorithm:
-```
-	bool bind(const std::string& login, const std::string& password)
-	{
-		bool flag{false};
-		m_user.email.clear(); 
-		m_user.display_name.clear();
-		m_user.roles.clear();
-		std::string hashed_pwd;
-		std::string sql {"execute cpp_dblogin '" + login + "'"};
-		
-		auto rec {sql::get_record("LOGINDB", sql)};
-		if ( rec.size() > 0) {
-			m_user.email = rec["mail"];
-			m_user.display_name = rec["displayname"];
-			m_user.roles = rec["rolenames"];
-			hashed_pwd = rec["password"];
-
-			//test password
-			int ret = bcrypt_checkpw(password.c_str(), hashed_pwd.c_str());
-			if (ret == 0) {
-				flag = true;
-			}			
-		}
-		return flag;
-	}
-```
-In this case login.h also changes to include the header of the bcrypt library, the rest remains the same, it's the same interface, only the internal implementation changes, down to the stored procedure.
+It is possible to change the implementation of the `bind()` function if you are not using hashed passwords that can be generated via SQL functions (like in this default implementation), maybe you are using BCrypt or something similar, in any case, the modifications are simple and we can provide support, just open an issue on GitHub. In the specific case of BCrypt, we already have a login implementation using a C-compiled library for BCrypt for x86-64.
 
 ### Retrieving JSON
 
@@ -1241,4 +1215,4 @@ CPP_LOGINDB is the database where the security tables and the stored procedure `
 
 ## Differences between PostgreSQL and ODBC versions
 
-In PostgreSQL the SQL functions return JSON from queries, except for specific cases that return a single record as a resultset, in ODBC the stored procedures will return resultsets, API-Server++ ODBC can only invoke stored procedures that return resultsets or return nothing, it does not support output parameters, only resultsets. For the PgSQL version, the rule is to return JSON, a single-row resultset, or return nothing, only SQL functions return JSON or resultsets in PgSQL, stored procedures can't return resultsets in PgSQL unlike SQL Server or DB2.
+PostgreSQL SQL functions return JSON from queries, except for specific cases that return a single record as a resultset, when using ODBC (SQL Server/DB2) the stored procedures will return resultsets, API-Server++ ODBC can only invoke stored procedures that return resultsets or return nothing, it does not support output parameters, only resultsets. For the PgSQL version, the rule is to return JSON, a single-row resultset, or return nothing, only SQL functions return JSON or resultsets in PgSQL, stored procedures can't return resultsets in PgSQL unlike SQL Server or DB2.
