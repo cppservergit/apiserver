@@ -29,6 +29,7 @@
 #include "logger.h"
 #include "jwt.h"
 #include "email.h"
+#include "json.h"
 
 namespace http
 {

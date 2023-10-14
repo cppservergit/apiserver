@@ -91,6 +91,14 @@ namespace
 	}
 
 	//upload support functions---------
+	constexpr void parse_json(auto req) 
+	{
+		std::string_view body {req->payload};
+		body = body.substr(req->internals.bodyStartPos);
+		for (auto& [key, value]: json::parse(body)) 
+			req->params.try_emplace(std::string(key), std::string(value));
+	}
+		
 	constexpr std::vector<std::string_view> parse_body(auto req) {
 		std::vector<std::string_view> vec;
 		std::string_view body {req->payload};
@@ -607,6 +615,8 @@ namespace http
 		if ( (payload.size() - internals.bodyStartPos) == internals.contentLength ) {
 			if (method == "POST" && isMultipart) 
 				parse_form();
+			else if (method == "POST" && get_header("content-type").ends_with("/json")) 
+				parse_json(this);
 			return true;
 		}
 		else
