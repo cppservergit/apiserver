@@ -15,7 +15,7 @@
 #include <ranges>
 #include <unordered_map>
 
-namespace 
+namespace json
 {
 	constexpr void trim(std::string_view& sv, const char* chars = " ") noexcept
 	{
@@ -39,14 +39,11 @@ namespace
 		} 
 		return std::make_pair("", "");
 	}
-}
 
-namespace json
-{
 	constexpr std::unordered_map<std::string_view, std::string_view> parse(std::string_view json)
 	{
 		std::unordered_map<std::string_view, std::string_view> fields;
-		const std::string_view body {json.substr(1, json.size() -2)}; //remove { }
+		const std::string_view body {json.substr(1, json.size() -2)}; //remove curly braces
 		const std::string delim{","};
 		for (const auto& word : std::views::split(body, delim)) {
 			const auto [name, value] {split_value(std::string_view{word})};
