@@ -39,11 +39,11 @@ This is the declaration of the utility function used to register an API with all
 ```
 You can specify input rules (input parameters, optional), authorized roles (optional), and your lambda function, which most of the time will be very simple, but it can also incorporate additional validations. All this metadata will be used to auto-generate API documentation.
 
-API-Server++ is a compact single-threaded epoll HTTP 1/1 microserver, for serving API requests only (GET/Multipart Form POST/OPTIONS), when a request arrives, the corresponding lambda will be dispatched for execution to a background thread, using the one-producer/many-consumers model. This way API-Server++ can multiplex thousands of concurrent connections with a single thread dispatching all the network-related tasks. API-Server++ is an async, non-blocking, event-oriented server, async because of the way the tasks are dispatched, it returns immediately to keep processing network events, while a background thread picks the task and executes it. The kernel will notify the program when there are events to process, in which case, non-blocking operations will be used on the sockets, and the program won't consume CPU while waiting for events, this way a single-threaded server can serve thousands of concurrent clients if the I/O tasks are fast. The size of the workers' thread pool can be configured via environment variable, the default is 4, which has proved to be good enough for high loads on VMs with 4-6 virtual cores.
+API-Server++ is a compact single-threaded epoll HTTP 1.1 microserver, for serving API requests only (GET/Multipart Form POST/OPTIONS), when a request arrives, the corresponding lambda will be dispatched for execution to a background thread, using the one-producer/many-consumers model. This way API-Server++ can multiplex thousands of concurrent connections with a single thread dispatching all the network-related tasks. API-Server++ is an async, non-blocking, event-oriented server, async because of the way the tasks are dispatched, it returns immediately to keep processing network events, while a background thread picks the task and executes it. The kernel will notify the program when there are events to process, in which case, non-blocking operations will be used on the sockets, and the program won't consume CPU while waiting for events, this way a single-threaded server can serve thousands of concurrent clients if the I/O tasks are fast. The size of the workers' thread pool can be configured via environment variable, the default is 4, which has proved to be good enough for high loads on VMs with 4-6 virtual cores.
 
 API-Server++ was designed to be run as a container on Kubernetes, with a stateless security/session model based on JSON web token (good for scalability), and built-in observability features for Grafana stack, but it can be run as a regular program on a terminal or as a SystemD Linux service, on production it will run behind an Ingress or Load Balancer providing TLS and Layer-7 protection.
 
-It uses the native PostgreSQL client C API `libpq` for maximum speed, as well as `libcurl` for secure email and openssl v3 for JWT signatures. It expects a JSON response from queries returning data, which is very easy to do using PostgreSQL functions.
+It uses the native PostgreSQL client C API `libpq` for maximum speed, as well as `libcurl` for secure email and `openssl v3` for JWT signatures. It expects a JSON response from queries returning data, which is very easy to do using PostgreSQL functions.
 
 ![webapi helloworld](https://github.com/cppservergit/apiserver/assets/126841556/40fcc7fb-533e-429e-aea0-d87923f58a01)
 
@@ -71,10 +71,11 @@ Optionally, you can upgrade the rest of the operating system, it may take some m
 sudo apt upgrade -y
 ```
 
-__Note__: You can run API server on Ubuntu 22.04 if you create a native Linux LXD container with Ubuntu 23.04 to run APIServer binary and use HAProxy as the HTTPS front on Ubuntu 22.04 (the server host OS).
+__Note__: You can run API-Server++ on Ubuntu 22.04 if you create a native Linux LXD container with Ubuntu 23.04 to run the API-Server++ binary and use HAProxy as the HTTPS front on Ubuntu 22.04 (the server host OS), this way you can run on a reliable LTS Ubuntu server, and also protect network access to API-Server++, which is only visible from the host via HAProxy.
 
 ![image](https://github.com/cppservergit/apiserver/assets/126841556/9fd9ec17-85ba-4910-a090-02c62857f8b2)
 
+API-Server++ requires GCC 13.1 or newer because it does take advantage of the latest C++ 20/23 standard features that are only supported by GCC 13.1 onwards, like <format>, constexpr strings and functions, ranges, and more.
 
 ### PostgreSQL testdb setup
 
