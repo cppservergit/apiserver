@@ -75,7 +75,7 @@ __Note__: You can run API-Server++ on Ubuntu 22.04 if you create a native Linux 
 
 ![image](https://github.com/cppservergit/apiserver/assets/126841556/9fd9ec17-85ba-4910-a090-02c62857f8b2)
 
-API-Server++ requires GCC 13.1 or newer because it does take advantage of the latest C++ 20/23 standard features that are only supported by GCC 13.1 onwards, like <format>, constexpr strings and functions, ranges, and more.
+API-Server++ requires GCC 13.1 or newer because it does take advantage of the latest C++ 20/23 standard features that are only supported by GCC 13.1 onwards, like `<format>`, constexpr strings and functions, ranges, and more.
 
 ### PostgreSQL testdb setup
 
