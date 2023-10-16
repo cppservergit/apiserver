@@ -73,7 +73,7 @@ sudo apt upgrade -y
 
 __Note__: You can run API-Server++ on Ubuntu 22.04 if you create a native Linux LXD container with Ubuntu 23.04 to run the API-Server++ binary and use HAProxy as the HTTPS front on Ubuntu 22.04 (the server host OS), this way you can run on a reliable LTS Ubuntu server, and also protect network access to API-Server++, which is only visible from the host via HAProxy.
 
-![image](https://github.com/cppservergit/apiserver/assets/126841556/9fd9ec17-85ba-4910-a090-02c62857f8b2)
+![image](https://github.com/cppservergit/apiserver/assets/126841556/2cfacfdc-6eba-4698-b2b9-b3a1ffa88fbd)
 
 API-Server++ requires GCC 13.1 or newer because it does take advantage of the latest C++ 20/23 standard features that are only supported by GCC 13.1 onwards, like `<format>`, constexpr strings and functions, ranges, and more.
 
