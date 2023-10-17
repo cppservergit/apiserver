@@ -464,6 +464,7 @@ struct server
 				if (events[i].events & EPOLLRDHUP || events[i].events & EPOLLHUP || events[i].events & EPOLLERR)
 				{
 					epoll_handle_close(events[i]);
+					continue;
 				}
 				else if (m_signal == events[i].data.fd) //shutdown
 				{
