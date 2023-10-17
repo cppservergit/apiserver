@@ -101,45 +101,23 @@ namespace
 				jt.signature = token.substr(pos);
                 jt.header = base64_decode(jt.header_encoded);
                 jt.payload = base64_decode(jt.payload_encoded);
-			} 
-		}
+			} else
+				logger::log(LOGGER_SRC, "warning", "invalid token format - cannot find second '.'");
+		} else
+			logger::log(LOGGER_SRC, "warning", "invalid token format - cannot find first '.'");
 		return jt;
-	}
-	
-	std::pair<int, std::string_view> get_attribute(std::string_view s, const std::string& name, size_t pos, bool is_numeric = false)
-	{
-		auto key {"\"" + name + "\":"};
-		std::string_view value;
-		pos = s.find(key, pos);
-		if (pos != std::string::npos) {
-			pos += key.size();
-            if (!is_numeric) {
-                auto pos1 {s.find("\"", pos)};
-                if (pos1 != std::string::npos) {
-                    auto pos2 {s.find("\"", pos1 + 1)};
-                    value = s.substr(pos1 + 1, pos2 - pos1 - 1);
-                    pos = pos2 + 1;
-                }
-            } else {
-                auto pos1 {pos};
-                auto pos2 {s.find("}", pos1)};
-                if (pos2 != std::string::npos) {
-                    value = s.substr(pos1, pos2 - pos1);
-                }
-            }
-		}
-		return make_pair(pos, value);
 	}
 	
 	jwt::user_info parse_payload(const std::string& payload)
 	{
-		auto [login_pos, login] {get_attribute(payload, "login", 0)};
-		auto [mail_pos, mail] {get_attribute(payload, "mail", login_pos)};
-		auto [roles_pos, roles] {get_attribute(payload, "roles", mail_pos)};
-		auto [exp_pos, exp] {get_attribute(payload, "exp", roles_pos, true)};
-		return jwt::user_info {std::string(login), std::string(mail), std::string(roles), std::stol(std::string(exp))};
+		auto fields {json::parse(payload)};
+		return jwt::user_info {
+				std::string(fields["login"]), 
+				std::string(fields["mail"]), 
+				std::string(fields["roles"]), 
+				std::stol(std::string(fields["exp"]))
+			};
 	}
-	
 }
 
 namespace jwt

@@ -615,8 +615,13 @@ namespace http
 		if ( (payload.size() - internals.bodyStartPos) == internals.contentLength ) {
 			if (method == "POST" && isMultipart) 
 				parse_form();
-			else if (method == "POST" && get_header("content-type").ends_with("/json")) 
-				parse_json(this);
+			else if (method == "POST" && get_header("content-type").ends_with("/json")) {
+				try {
+					parse_json(this);
+				} catch (json::invalid_json_exception& e) {
+					set_parse_error(e.what());
+				}
+			}
 			return true;
 		}
 		else

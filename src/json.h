@@ -17,6 +17,19 @@
 
 namespace json
 {
+	
+	class invalid_json_exception
+	{
+		public:
+			explicit invalid_json_exception(const std::string& _msg): m_msg {_msg} {}
+			std::string what() const noexcept {
+				std::string error_msg{m_msg};
+				return error_msg;
+			}
+		private:
+            std::string m_msg;
+	};		
+	
 	constexpr void trim(std::string_view& sv, const char* chars = " ") noexcept
 	{
 		if (sv.empty()) return;
@@ -43,12 +56,21 @@ namespace json
 	constexpr std::unordered_map<std::string_view, std::string_view> parse(std::string_view json)
 	{
 		std::unordered_map<std::string_view, std::string_view> fields;
-		const std::string_view body {json.substr(1, json.size() -2)}; //remove curly braces
-		const std::string delim{","};
-		for (const auto& word : std::views::split(body, delim)) {
-			const auto [name, value] {split_value(std::string_view{word})};
-			fields.try_emplace(name, value);
-		}   
+        if (auto pos1 = json.find("{"); pos1 != std::string::npos) {
+            pos1 += 1;
+			if (auto pos2 = json.find("}", pos1); pos2 != std::string::npos) {
+                const std::string_view body {json.substr(pos1, pos2 - pos1)}; 
+                const std::string delim{","};
+                for (const auto& word : std::views::split(body, delim)) {
+                    const auto [name, value] {split_value(std::string_view{word})};
+                    fields.try_emplace(name, value);
+		        }   
+			} else
+				throw invalid_json_exception("invalid JSON format - lacks closing brace");
+		} else
+			throw invalid_json_exception("invalid JSON format - lacks opening brace");
+		if (fields.empty())
+			throw invalid_json_exception("invalid JSON format - no attributes available inside the braces");
 		return fields;
 	}
 }
