@@ -14,10 +14,10 @@
 #include <string_view>
 #include <ranges>
 #include <unordered_map>
+#include "util.h"
 
 namespace json
 {
-	
 	class invalid_json_exception
 	{
 		public:
@@ -29,40 +29,42 @@ namespace json
 		private:
             std::string m_msg;
 	};		
-	
-	constexpr void trim(std::string_view& sv, const char* chars = " ") noexcept
-	{
-		if (sv.empty()) return;
-		sv.remove_prefix(std::min(sv.find_first_not_of(chars), sv.size()));
-		if (auto pos {sv.find_last_not_of(chars)}; pos != std::string_view::npos)
-			sv.remove_suffix(sv.size() - (sv.find_last_not_of(chars) + 1));
-	}
 
-	constexpr std::pair<std::string_view, std::string_view> split_value(std::string_view line)
+    constexpr void extract_value(std::string& s) noexcept
+    {
+        if (auto pos1 = s.find("\""); pos1 != std::string::npos) {
+            pos1 += 1;
+			if (auto pos2 = s.find("\"", pos1); pos2 != std::string::npos)
+                s = s.substr(pos1, pos2 - pos1); 
+            return;
+        }
+        if (s.empty()) return;
+        s.erase(0, s.find_first_not_of(" "));
+        s.erase(s.find_last_not_of(" ") + 1);
+    }
+
+	constexpr std::pair<std::string, std::string> split_value(std::string_view line)
 	{
-		//separate key, value and remove quotes from each one
 		if (const auto newpos = line.find(":", 0); newpos != std::string_view::npos) {
-			std::string_view header_name {line.substr(0,  newpos)};
-			std::string_view header_value {line.substr(newpos + 1,  line.size() - newpos)};
-			trim(header_name);
-			trim(header_value);
-			trim(header_name, "\"");
-			trim(header_value, "\"");
+			std::string header_name {line.substr(0,  newpos)};
+			std::string header_value {line.substr(newpos + 1,  line.size() - newpos)};
+			extract_value(header_name);
+			extract_value(header_value);
 			return std::make_pair(header_name, header_value);
 		} 
 		return std::make_pair("", "");
 	}
 
-	constexpr std::unordered_map<std::string_view, std::string_view> parse(std::string_view json)
+	inline auto parse(std::string_view json)
 	{
-		std::unordered_map<std::string_view, std::string_view> fields;
+		std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>> fields;
         if (auto pos1 = json.find("{"); pos1 != std::string::npos) {
             pos1 += 1;
 			if (auto pos2 = json.find("}", pos1); pos2 != std::string::npos) {
                 const std::string_view body {json.substr(pos1, pos2 - pos1)}; 
                 const std::string delim{","};
                 for (const auto& word : std::views::split(body, delim)) {
-                    const auto [name, value] {split_value(std::string_view{word})};
+                    const auto& [name, value] {split_value(std::string_view{word})};
                     fields.try_emplace(name, value);
 		        }   
 			} else
@@ -72,7 +74,7 @@ namespace json
 		if (fields.empty())
 			throw invalid_json_exception("invalid JSON format - no attributes available inside the braces");
 		return fields;
-	}
+	}	
 }
 
 #endif /* JSON_H_ */

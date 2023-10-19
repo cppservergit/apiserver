@@ -112,10 +112,10 @@ namespace
 	{
 		auto fields {json::parse(payload)};
 		return jwt::user_info {
-				std::string(fields["login"]), 
-				std::string(fields["mail"]), 
-				std::string(fields["roles"]), 
-				std::stol(std::string(fields["exp"]))
+				fields["login"], 
+				fields["mail"], 
+				fields["roles"], 
+				std::stol(fields["exp"])
 			};
 	}
 }

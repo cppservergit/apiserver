@@ -3,14 +3,43 @@
 namespace
 {
 	/* utility functions */
-	inline std::string lowercase(std::string_view sv) noexcept 
+	template<typename T>
+	requires(std::is_arithmetic_v<T>)
+	constexpr std::pair<bool, T> is_valid_number(std::string_view str) noexcept
+	{
+		T result{};
+		auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), result);
+		if (ec == std::errc() && ptr == str.data() + str.size())
+			return std::make_pair(true, result);
+		else 
+			return std::make_pair(false, 0);
+	}
+
+	constexpr bool is_valid_date(std::string_view strdate) noexcept
+	{
+		//note: GCC-13 chrono implementation does not support from_stream() nor parse()
+		if (strdate.size() != 10) //must be yyyy-mm-dd
+			return false;
+		const auto [y_ok, y] {is_valid_number<int>(strdate.substr(0, 4))};
+		const auto [m_ok, m] {is_valid_number<int>(strdate.substr(5, 2))};
+		const auto [d_ok, d] {is_valid_number<int>(strdate.substr(8, 2))};
+		if (!y_ok || !m_ok || !d_ok)
+			return false;
+		const auto ymd {std::chrono::year(y)/std::chrono::month(m)/std::chrono::day(d)};
+		if (ymd.ok())
+			return true;
+		else
+			return false;
+	}
+
+	constexpr std::string lowercase(std::string_view sv) noexcept 
 	{
 		std::string s {sv};
 		std::ranges::transform( s, s.begin(), [](unsigned char c){ return std::tolower(c); } );
 		return s;
 	}
 	
-	inline std::string trim(const std::string & source)
+	constexpr std::string trim(const std::string & source)
 	{
 		std::string s(source);
 		s.erase(0, s.find_first_not_of(" "));
@@ -18,58 +47,7 @@ namespace
 		return s;
 	}
 
-	inline bool is_integer(const std::string_view s)
-	{
-		return std::ranges::find_if(s, [](unsigned char c) { return !std::isdigit(c); }) == s.end();
-	}
-
-	inline bool is_double(std::string_view s)
-	{
-		if (auto d = s.find("."); d!=std::string::npos) {
-			auto part1{s.substr(0, d)};
-			auto part2{s.substr(d + 1)};
-			if (is_integer(part1) && is_integer(part2))
-				return true;
-			else
-				return false;
-		} else
-			return is_integer(s);
-	}
-
-	// check for valid date in format yyyy-mm-dd
-	inline bool is_date(std::string_view value) 
-	{
-		if (value.length() != 10)
-			return false;
-
-		std::string sd {value.substr(8, 2)};
-		if (!is_integer(sd)) return false;
-		std::string sm {value.substr(5, 2)};
-		if (!is_integer(sm)) return false;
-		std::string sy {value.substr(0, 4)};
-		if (!is_integer(sy)) return false;
-
-		int d = std::stoi(sd);
-		int m = std::stoi(sm);
-		int y = std::stoi(sy);
-
-		if (!(1 <= m && m <= 12) )
-			return false;
-		if (!(1 <= d && d <= 31) )
-			return false;
-		if ( d == 31 && (m == 2 || m == 4 || m == 6 || m == 9 || m == 11) )
-			return false;
-		if (d == 30 && m == 2)
-			return false;
-		if (m == 2 && d == 29) {
-			if (y % 4 != 0 || y % 100 == 0) return false;
-			if (y % 400 == 0 || y % 4 == 0) return true;
-		}
-
-		return true;
-	}
-
-	inline void replace_str(std::string &str, std::string_view from, std::string_view to) 
+	constexpr void replace_str(std::string &str, std::string_view from, std::string_view to) 
 	{
 		if (from.empty() || to.empty())
 			return;
@@ -80,7 +58,7 @@ namespace
 		}
 	}	
 
-	inline bool save_blob(const std::string& filename, const std::string& content)
+	constexpr bool save_blob(const std::string& filename, const std::string& content)
 	{
 		std::ofstream ofs(filename, std::ios::binary);
 		if (ofs.is_open()) {
@@ -94,9 +72,8 @@ namespace
 	constexpr void parse_json(auto req) 
 	{
 		std::string_view body {req->payload};
-		body = body.substr(req->internals.bodyStartPos);
-		for (auto& [key, value]: json::parse(body)) 
-			req->params.try_emplace(std::string(key), std::string(value));
+		std::string_view payload {body.substr(req->internals.bodyStartPos)};
+		req->params = json::parse(payload); 
 	}
 		
 	constexpr std::vector<std::string_view> parse_body(auto req) {
@@ -395,15 +372,15 @@ namespace http
 		using enum field_type;
 		switch (r.get_type()) {
 			case INTEGER:
-				if (!is_integer(value))
+				if (const auto [ok, retval] {is_valid_number<int>(value)}; !ok)
 					throw invalid_input_exception(r.get_name(), "err.invalidtype");
 				break;
 			case DOUBLE:
-				if (!is_double(value))
+				if (const auto [ok, retval] {is_valid_number<double>(value)}; !ok)
 					throw invalid_input_exception(r.get_name(), "err.invalidtype");
 				break;
 			case DATE:
-				if (!is_date(value))
+				if (!is_valid_date(value))
 					throw invalid_input_exception(r.get_name(), "err.invalidtype");
 				break;
 			case STRING:
