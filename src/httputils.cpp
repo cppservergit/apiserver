@@ -577,12 +577,13 @@ namespace http
 					_save = false;
 			} else {
 				std::string file_uuid {get_uuid()};
-				params.try_emplace( "document", file_uuid);
+				std::string save_path {blob_path + file_uuid};
 				params.try_emplace( "content_len", std::to_string( f.data.size() ) );
 				params.try_emplace( "content_type", f.content_type);
+				params.try_emplace( "document", file_uuid);
 				params.try_emplace( "filename", f.filename);
 				if (_save)
-					save_blob_failed = !save_blob(blob_path + file_uuid, f.data);
+					save_blob_failed = !save_blob(save_path, f.data);
 			}
 		}
 	}
