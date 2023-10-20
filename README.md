@@ -1096,7 +1096,7 @@ begin
 	DECLARE @encodedpwd varchar(200);
 	set @pwd = @userlogin + ':' + @userpassword;
 	
-	select distinct STRING_AGG(r.rolename, ', ') as rolenames into #roles from testdb.dbo.s_user_role ur inner join testdb.dbo.s_user u
+	select distinct STRING_AGG(r.rolename, ' ') as rolenames into #roles from testdb.dbo.s_user_role ur inner join testdb.dbo.s_user u
 	on u.user_id = ur.user_id
 	inner join testdb.dbo.s_role r on r.role_id = ur.role_id
 	where u.userlogin = @userlogin;
