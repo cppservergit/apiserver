@@ -610,6 +610,46 @@ struct server
 			},
 			false /* no security */
 		);
+		
+		auto get_roles = [](const auto &role_list) {
+			std::string body;
+			for (const auto& role: role_list)
+				body.append(std::format(R"({{"rolename":"{}"}},)", role));
+			if (!body.empty()) 
+				body.pop_back();
+			return body;
+		};
+		
+		auto get_inputs = [](const auto &inputs) {
+			std::string body;
+			std::array<std::string, 4> types {"int", "double", "string", "date"};
+			for (const auto& input: inputs)
+				body.append(std::format(R"({{"name":"{}","data-type":"{}","required":"{}"}},)", input.get_name(), types[int(input.get_type()) - 1], input.get_required()));
+			if (!body.empty()) 
+				body.pop_back();
+			return body;
+		};		
+		
+		register_webapi
+		(
+			webapi_path("/api/docs"), 
+			"Return API documentation in JSON format",
+			http::verb::GET, 
+			[this, &get_roles, &get_inputs](http::request& req) 
+			{
+				std::string body;
+				body.reserve(32767);
+				for (const auto& [key, api]: webapi_catalog) {
+					auto cmd {(api.verb == http::verb::GET) ? "GET" : "POST"};
+					auto roles {get_roles(api.roles)};
+					auto inputs {get_inputs(api.rules)};
+					body.append(std::format(R"({{"path":"{}","description":"{}","http-command":"{}","is-secure":"{}","roles":[{}],"inputs":[{}]}},)", key, api.description, cmd, api.is_secure, roles, inputs));
+				}
+				body.pop_back();
+				req.response.set_body(std::format(R"({{"data":[{}]}})", body));
+			},
+			false /* no security */
+		);
 	}
 	
 	constexpr void register_webapi(
