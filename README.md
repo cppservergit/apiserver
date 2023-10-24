@@ -63,7 +63,7 @@ sudo apt update
 
 Install required packages:
 ```
-sudo apt install g++-13 libssl-dev libpq-dev libcurl4-openssl-dev uuid-dev libldap-dev make -y --no-install-recommends
+sudo apt install g++-13 libssl-dev libpq-dev libcurl4-openssl-dev uuid-dev libjson-c-dev libldap-dev make -y --no-install-recommends
 ```
 
 Optionally, you can upgrade the rest of the operating system, it may take some minutes and require a restart of the VM:
@@ -1001,7 +1001,7 @@ There is a separate branch of this project that instead of using the native Post
 
 For development purposes please install these packages:
 ```
-sudo apt install g++-13 libssl-dev libpq-dev libcurl4-openssl-dev uuid-dev libldap-dev unixodbc-dev tdsodbc make -y --no-install-recommends
+sudo apt install g++-13 libssl-dev libpq-dev libcurl4-openssl-dev uuid-dev libjson-c-dev libldap-dev unixodbc-dev tdsodbc make -y --no-install-recommends
 ```
 This command will also install [FreeTDS](https://www.freetds.org/index.html) ODBC driver for SQL Server and Sybase.
 
