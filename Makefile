@@ -9,13 +9,13 @@ apiserver: env.o logger.o jwt.o httputils.o email.o sql.o login.o util.o main.o
 	$(CC) $(CC_OPTS) $(CC_OBJS) $(CC_LIBS) -o "apiserver"
 
 main.o: src/main.cpp src/server.h
-	$(CC) $(CC_OPTS) -I/usr/include/postgresql -DCPP_BUILD_DATE=$(DATE) -c src/main.cpp
+	$(CC) $(CC_OPTS) -DCPP_BUILD_DATE=$(DATE) -c src/main.cpp
 
 login.o: src/login.cpp src/login.h
-	$(CC) $(CC_OPTS) -I/usr/include/postgresql -c src/login.cpp
+	$(CC) $(CC_OPTS) -c src/login.cpp
 
 sql.o: src/sql.cpp src/sql.h
-	$(CC) $(CC_OPTS) -I/usr/include/postgresql -c src/sql.cpp
+	$(CC) $(CC_OPTS) -c src/sql.cpp
 
 email.o: src/email.cpp src/email.h
 	$(CC) $(CC_OPTS) -c src/email.cpp
