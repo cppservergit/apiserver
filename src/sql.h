@@ -14,7 +14,7 @@
 #include <iostream>
 #include <unordered_map>
 #include <vector>
-#include <libpq-fe.h>
+#include <postgresql/libpq-fe.h>
 #include "logger.h"
 #include "env.h"
 #include "util.h"
