@@ -35,7 +35,7 @@ namespace json
 		std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>> fields;
 		json_object * jobj = json_tokener_parse(json.data());
 		if (jobj == nullptr) {
-			std::clog << std::format("[DEBUG][JSON] invalid JSON format: {}{}", json, "\n");
+			std::clog << std::format("[DEBUG][JSON] invalid JSON format: {}\n", json);
 			throw invalid_json_exception("invalid JSON format, check stderr log for details");
 		}
 		json_object_object_foreach(jobj, key, val) {
@@ -44,6 +44,7 @@ namespace json
 			else
 				fields.try_emplace(key, "");
 		}
+		json_object_put(jobj);
 		return fields;
 	}
 }
