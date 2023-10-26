@@ -69,13 +69,14 @@ namespace
 	}
 
 	//upload support functions---------
+	
 	constexpr void parse_json(auto req) 
 	{
 		std::string_view body {req->payload};
 		std::string_view payload {body.substr(req->internals.bodyStartPos)};
-		req->params = json::parse(payload); 
+		req->params = std::move(json::parse(payload)); 
 	}
-		
+
 	constexpr std::vector<std::string_view> parse_body(auto req) {
 		std::vector<std::string_view> vec;
 		std::string_view body {req->payload};
