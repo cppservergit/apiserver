@@ -245,7 +245,7 @@ namespace http
 		void send_mail(const std::string& to, const std::string& cc, 
 			const std::string& subject, const std::string& body, const std::string& attachment, const std::string& attachment_filename) noexcept;
 		
-		std::string get_body() const noexcept;
+		std::string_view get_body() const noexcept;
 		
 	  private:
 		void test_field(const http::input_rule& r, std::string& value);

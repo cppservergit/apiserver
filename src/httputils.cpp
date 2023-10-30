@@ -750,9 +750,10 @@ namespace http
 		task.detach();
 	}
 
-	std::string request::get_body() const noexcept
+	std::string_view request::get_body() const noexcept
 	{
-		return payload.substr(internals.bodyStartPos);
+		std::string_view body {payload};
+		return body.substr(internals.bodyStartPos);
 	}
 
 }
