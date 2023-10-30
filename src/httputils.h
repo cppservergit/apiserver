@@ -102,8 +102,7 @@ namespace http
 		public:
 			explicit save_blob_exception(const std::string& _msg): m_msg {_msg} {}
 			std::string what() const noexcept {
-				std::string error_msg{m_msg};
-				return error_msg;
+				return m_msg;
 			}
 		private:
             std::string m_msg;
