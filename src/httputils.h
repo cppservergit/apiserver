@@ -154,6 +154,55 @@ namespace http
 		std::string errmsg;
 	};
 
+	struct socket_buffer {
+	private:
+		constexpr static int _buffer_size {8192};
+		constexpr static double _threshold {0.75};
+		std::vector<char> _buffer;
+		int _pos{0};
+	public:
+		socket_buffer() {
+			_buffer.resize(_buffer_size, 0);
+		}
+		
+		constexpr void update_pos(int n) noexcept {
+			if ( n > 0) {
+				_pos += n;
+				if (_pos > int(double(_buffer.size()) * _threshold))
+					_buffer.resize(_buffer.size() + _buffer_size, 0);
+			}
+		}
+		
+		constexpr int available_size() const noexcept {
+			return int(_buffer.size() - _pos);
+		}
+
+		constexpr auto buffer_size() const noexcept {
+			return _buffer.size();
+		}
+
+		constexpr auto size() const noexcept {
+			return _pos;
+		}
+
+		constexpr char* data() noexcept {
+			return &_buffer[_pos];
+		}
+		
+		constexpr std::string_view view() const noexcept {
+			return std::string_view{&_buffer[0], &_buffer[_pos]};
+		}
+		
+		constexpr bool empty() const noexcept {
+			return _pos == 0;
+		}
+		
+		constexpr void clear() noexcept {
+			_pos = 0;
+			_buffer.resize(_buffer_size, 0);
+		}
+	};
+
 	struct response_stream {
 	  public:	
 		explicit response_stream(int size) noexcept;
@@ -205,7 +254,7 @@ namespace http
 		std::string boundary;
 		std::string token;
 		std::string origin{"null"};
-		std::string payload;
+		socket_buffer payload;
 		std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>> headers;
 		std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>> params;
 		std::vector<input_rule> input_rules;
@@ -216,7 +265,6 @@ namespace http
 		{
 			headers.reserve(10);
 			params.reserve(10);
-			payload.reserve(8191);
 		}
 
 		request() = default;
@@ -239,10 +287,9 @@ namespace http
 		void check_security(const std::vector<std::string>& roles = {});
 		void log(std::string_view source, std::string_view level, const std::string& msg) noexcept;
 		
-		void send_mail(const std::string& to, const std::string& subject, const std::string& body) noexcept;
-		void send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body) noexcept;
-		void send_mail(const std::string& to, const std::string& cc, 
-			const std::string& subject, const std::string& body, const std::string& attachment, const std::string& attachment_filename) noexcept;
+		void send_mail(const std::string& to, const std::string& subject, const std::string& body);
+		void send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body);
+		void send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body, const std::string& attachment, const std::string& attachment_filename);
 		
 		std::string_view get_body() const noexcept;
 		

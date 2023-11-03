@@ -72,14 +72,14 @@ namespace
 	
 	constexpr void parse_json(auto req) 
 	{
-		std::string_view body {req->payload};
+		std::string_view body {req->payload.view()};
 		std::string_view payload {body.substr(req->internals.bodyStartPos)};
 		req->params = std::move(json::parse(payload)); 
 	}
 
 	constexpr std::vector<std::string_view> parse_body(auto req) {
 		std::vector<std::string_view> vec;
-		std::string_view body {req->payload};
+		std::string_view body {req->payload.view()};
 		body = body.substr(req->internals.bodyStartPos);
 		const std::string delim{ "--" + req->boundary + "\r\n"};
 		const std::string end_delim{"--" + req->boundary + "--" + "\r\n"};
@@ -536,7 +536,7 @@ namespace http
 	
 	void request::parse() 
 	{
-		std::string_view str{payload};
+		std::string_view str{payload.view()};
 		internals.bodyStartPos = str.find("\r\n\r\n", 0) + 4;
 		line_reader lr(str.substr(0, internals.bodyStartPos));
 	
@@ -716,18 +716,18 @@ namespace http
 		logger::log(source, level, replace_params(this, msg), get_header("x-request-id"));
 	}
 
-	void request::send_mail(const std::string& to, const std::string& subject, const std::string& body) noexcept
+	void request::send_mail(const std::string& to, const std::string& subject, const std::string& body)
 	{
 		send_mail(to, "", subject, body, "", "");
 	}
 
-	void request::send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body) noexcept
+	void request::send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body)
 	{
 		send_mail(to, cc, subject, body, "", "");
 	}
 
 	void request::send_mail(const std::string& to, const std::string& cc, const std::string& subject, const std::string& body, 
-		const std::string& attachment, const std::string& attachment_filename) noexcept
+		const std::string& attachment, const std::string& attachment_filename)
 	{
 		auto mail_body {get_mail_body(this, body)};
 		auto x_request_id {get_header("x-request-id")};
@@ -752,7 +752,7 @@ namespace http
 
 	std::string_view request::get_body() const noexcept
 	{
-		std::string_view body {payload};
+		std::string_view body {payload.view()};
 		return body.substr(internals.bodyStartPos);
 	}
 

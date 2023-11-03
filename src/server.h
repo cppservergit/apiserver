@@ -47,7 +47,7 @@
 #include "jwt.h"
 #include "email.h"
 
-constexpr char SERVER_VERSION[] = "API-Server++ v1.0.5";
+constexpr char SERVER_VERSION[] = "API-Server++ v1.0.7";
 constexpr const char* LOGGER_SRC {"server"};
 
 struct webapi_path
@@ -136,6 +136,7 @@ struct server
 	
 	std::unordered_map<std::string, webapi, util::string_hash, std::equal_to<>> webapi_catalog;
 	std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>> ip_restrictions;
+	std::unordered_map<int, http::request> buffers;
 	
 	consteval void set_ip_restriction(const webapi_path& path, const std::string& iplist)
 	{
@@ -259,7 +260,7 @@ struct server
 	constexpr void log_request(const http::request& req, double duration) noexcept
 	{
 		constexpr auto msg {"fd={} remote-ip={} {} path={} elapsed-time={:f} user={}"};
-		logger::log("access-log", "info", std::format(msg, req.fd, req.remote_ip, req.method, req.path, duration, req.user_info.login));
+		logger::log("access-log", "info", std::format(msg, req.fd, req.remote_ip, req.method, req.path, duration, req.user_info.login), req.get_header("x-request-id"));
 	}
 
 	constexpr void http_server (http::request& req, const webapi& api) noexcept
@@ -284,10 +285,10 @@ struct server
 		--g_active_threads;
 	};
 
-	constexpr bool read_request(http::request& req, const char* data, int bytes) noexcept
+	constexpr bool read_request(http::request& req, int bytes) noexcept
 	{
 		bool first_packet { (req.payload.empty()) ? true : false };
-		req.payload.append(data, bytes);
+		req.payload.update_pos(bytes);
 		if (first_packet) {
 			req.parse();
 			if (req.method == "GET" || req.internals.errcode ==  -1)
@@ -341,21 +342,22 @@ struct server
 		epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event);
 	}
 
-	constexpr void epoll_handle_close(epoll_event ev) noexcept
+	constexpr void epoll_handle_close(epoll_event& ev) noexcept
 	{
-		if (ev.data.ptr == nullptr) {
+		if (ev.data.ptr == nullptr) 
 			logger::log("epoll", "error", "EPOLLRDHUP epoll data ptr is null - unable to retrieve request object");
-		} else {
+		else {
 			http::request& req = *static_cast<http::request*>(ev.data.ptr);
-			req.clear();
 			int rc = close(req.fd);
 			if (rc == -1)
 				logger::log("epoll", "error", std::format("close FAILED for FD: {} description: {}", req.fd, strerror(errno)));
+			if (!req.payload.empty()) //for the case when the request failed to be processed
+				req.clear();
 		}
 		--g_connections;
 	}
 
-	constexpr void epoll_handle_connect(int listen_fd, int epoll_fd, std::unordered_map<int, http::request>& buffers) noexcept
+	constexpr void epoll_handle_connect(int listen_fd, int epoll_fd) noexcept
 	{
 		struct sockaddr addr;
 		socklen_t len;
@@ -410,15 +412,15 @@ struct server
 			epoll_abort_request(req);
 	}
 
-	constexpr void epoll_handle_read(epoll_event& ev, std::array<char, 8192>& data) noexcept
+	constexpr void epoll_handle_read(epoll_event& ev) noexcept
 	{
 		http::request& req = *static_cast<http::request*>(ev.data.ptr);
 		while (true) 
 		{
-			int count = read(req.fd, data.data(), data.size());
+			int count = read(req.fd, req.payload.data(), req.payload.available_size());
 			if (count == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
 				return;
-			if (count > 0 && read_request(req, data.data(), count)) {
+			if (count > 0 && read_request(req, count)) {
 					run_async_task(req);
 					break;
 			}
@@ -437,22 +439,20 @@ struct server
 		}
 	}
 
-	constexpr void epoll_handle_IO(epoll_event& ev, std::array<char, 8192>& data) noexcept
+	constexpr void epoll_handle_IO(epoll_event& ev) noexcept
 	{
 		if (ev.data.ptr == nullptr) {
 			logger::log("epoll", "error", "epoll_handle_IO() - epoll data ptr is null");
 			return;
 		}
 		if (ev.events & EPOLLIN) 
-			epoll_handle_read(ev, data);
+			epoll_handle_read(ev);
 		else 
 			epoll_handle_write(ev);
 	}
 
 	constexpr void epoll_loop(int listen_fd, int epoll_fd) noexcept
 	{
-		std::unordered_map<int, http::request> buffers;
-		std::array<char, 8192> data;
 		constexpr int MAXEVENTS = 64;
 		std::array<epoll_event, MAXEVENTS> events;
 
@@ -473,11 +473,11 @@ struct server
 				}
 				else if (listen_fd == events[i].data.fd) // new connection.
 				{
-					epoll_handle_connect(listen_fd, epoll_fd, buffers);
+					epoll_handle_connect(listen_fd, epoll_fd);
 				}
 				else // read/write
 				{
-					epoll_handle_IO(events[i], data);
+					epoll_handle_IO(events[i]);
 				}
 			}
 		}		
