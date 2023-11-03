@@ -348,8 +348,7 @@ struct server
 			logger::log("epoll", "error", "EPOLLRDHUP epoll data ptr is null - unable to retrieve request object");
 		else {
 			http::request& req = *static_cast<http::request*>(ev.data.ptr);
-			int rc = close(req.fd);
-			if (rc == -1)
+			if (int rc {close(req.fd)}; rc == -1)
 				logger::log("epoll", "error", std::format("close FAILED for FD: {} description: {}", req.fd, strerror(errno)));
 			if (!req.payload.empty()) //for the case when the request failed to be processed
 				req.clear();
