@@ -250,9 +250,8 @@ On the same terminal windows where API-Server++ is running, please press CTRL-C 
 nano src/main.cpp
 ```
 
-Add this code right above s.start():
+Add this code below `server s;` and right above `s.start();`:
 ```
-	server s;
 	s.register_webapi
 	(
 		webapi_path("/api/shippers/view"), 
@@ -267,7 +266,7 @@ Add this code right above s.start():
 	);
 ```
 CTRL-x to exit and save.
-With one line of code, we define a new API, with some metadata including a description, the HTTP method supported, input rules validation if any, authorized roles if any, and most important, a lambda function with the code implementing the API, a one-liner in this case, thanks to the high-level abstractions of API-Server++.
+With one line of code, we define a new API, with some metadata including a description, the HTTP method supported, input rules validation if any, authorized roles if any, and most importantly, a lambda function with the code implementing the API, a one-liner in this case, thanks to the high-level abstractions of API-Server++.
 
 The function `sql::get_json_response()` executes a query that MUST return JSON straight from the database, in the specific case of the HelloWorld example the SQL function looks like this:
 
@@ -328,8 +327,8 @@ make
 
 Expected output:
 ```
-g++-13 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -I/usr/include/postgresql -c src/main.cpp
-g++-13 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel env.o logger.o jwt.o httputils.o sql.o login.o server.o main.o -lpq -lcurl -lcrypto -o "apiserver"
+g++-13 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel -c src/main.cpp
+g++-13 -Wall -Wextra -O3 -std=c++23 -pthread -flto=6 -fno-extern-tls-init -march=native -mtune=intel env.o logger.o jwt.o httputils.o sql.o login.o server.o main.o -lpq -lcurl -lcrypto -luuid -ljson-c -o "apiserver"
 ```
 
 Now run the server again:
