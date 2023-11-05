@@ -17,7 +17,7 @@ int main()
 		[](http::request& req) 
 		{
 			std::string sql {"select * from fn_shipper_view()"};
-			req.response.set_body( sql::get_json_response("DB1", sql) );
+			req.response.set_body(sql::get_json_response("DB1", sql));
 		}
 	);
 	
