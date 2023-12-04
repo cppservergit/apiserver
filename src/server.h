@@ -128,7 +128,7 @@ struct server
 				const http::verb _verb,
 				const std::vector<http::input_rule>& _rules,
 				const std::vector<std::string>& _roles,
-				const std::function<void(http::request&)> _fn,
+				const std::function<void(http::request&)>& _fn,
 				bool _is_secure
 			): description{_description}, verb{_verb}, rules{_rules}, roles{_roles}, fn{_fn}, is_secure{_is_secure}
 		{ }
@@ -664,7 +664,7 @@ struct server
 						const http::verb& _verb,
 						const std::vector<http::input_rule>& _rules,
 						const std::vector<std::string>& _roles,
-						const std::function<void(http::request&)> _fn,
+						const std::function<void(http::request&)>& _fn,
 						const bool _is_secure = true
 						)
 	{
@@ -686,7 +686,7 @@ struct server
 						const webapi_path& _path, 
 						const std::string& _description, 
 						const http::verb& _verb, 
-						const std::function<void(http::request&)> _fn, 
+						const std::function<void(http::request&)>& _fn, 
 						const bool _is_secure = true
 						)
 	{
