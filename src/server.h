@@ -128,7 +128,7 @@ struct server
 				const http::verb _verb,
 				const std::vector<http::input_rule>& _rules,
 				const std::vector<std::string>& _roles,
-				const std::function<void(http::request&)>& _fn,
+				const std::function<void(http::request&)> _fn,
 				bool _is_secure
 			): description{_description}, verb{_verb}, rules{_rules}, roles{_roles}, fn{_fn}, is_secure{_is_secure}
 		{ }
@@ -159,7 +159,13 @@ struct server
 	int m_signal {get_signalfd()};
 	
 	std::string pod_name;
-
+	
+	std::chrono::time_point<std::chrono::high_resolution_clock> _start_init{};
+	
+	server() {
+			_start_init = std::chrono::high_resolution_clock::now();
+	}
+	
 	constexpr void send_options(http::request& req)
 	{
 		constexpr auto res {
@@ -595,15 +601,16 @@ struct server
 			{
 				std::string login{req.get_param("username")};
 				std::string password{req.get_param("password")};
-				if (auto lr {login::bind(login, password)}; lr.ok()) {
+				if (const auto lr {login::bind(login, password)}; lr.ok()) {
 					const std::string token {jwt::get_token(login, lr.get_email(), lr.get_roles())};
-					const std::string login_ok {std::format(R"({{"status":"OK","data":[{{"displayname":"{}","token_type":"bearer","id_token":"{}"}}]}})", lr.get_display_name(), token)};
+					constexpr auto json {R"({{"status":"OK","data":[{{"displayname":"{}","token_type":"bearer","id_token":"{}"}}]}})"};
+					const std::string login_ok {std::format(json, lr.get_display_name(), token)};
 					req.response.set_body(login_ok);
 					if (env::login_log_enabled())
 						logger::log("security", "info", std::format("login OK - user: {} IP: {} token: {} roles: {}", login, req.remote_ip, token, lr.get_roles()));
 				} else {
 					logger::log("security", "warn", std::format("login failed - user: {} IP: {}", login, req.remote_ip));
-					const std::string invalid_login = R"({"status": "INVALID", "validation": {"id": "login", "description": "err.invalidcredentials"}})";
+					const std::string invalid_login = R"({"status":"INVALID","validation":{"id":"login","description":"err.invalidcredentials"}})";
 					req.response.set_body(invalid_login);
 				}
 			},
@@ -657,7 +664,7 @@ struct server
 						const http::verb& _verb,
 						const std::vector<http::input_rule>& _rules,
 						const std::vector<std::string>& _roles,
-						const std::function<void(http::request&)>& _fn,
+						const std::function<void(http::request&)> _fn,
 						const bool _is_secure = true
 						)
 	{
@@ -679,7 +686,7 @@ struct server
 						const webapi_path& _path, 
 						const std::string& _description, 
 						const http::verb& _verb, 
-						const std::function<void(http::request&)>& _fn, 
+						const std::function<void(http::request&)> _fn, 
 						const bool _is_secure = true
 						)
 	{
@@ -706,6 +713,9 @@ struct server
 			stops[i] = std::stop_source();
 			pool[i] = std::jthread(consumer, stops[i].get_token(), this);
 		}
+		
+		std::chrono::duration<double> elapsed = std::chrono::high_resolution_clock::now() - _start_init;
+		logger::log("server", "info", std::format("server started in {}s", elapsed.count()));
 		
 		start_epoll(port);
 
