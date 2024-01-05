@@ -20,6 +20,7 @@
 #include <openssl/hmac.h>
 #include "logger.h"
 #include "env.h"
+#include "json.h"
 
 namespace jwt
 {

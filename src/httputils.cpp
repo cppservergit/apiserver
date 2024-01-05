@@ -218,11 +218,6 @@ namespace http
 		}
 	}
 
-	response_stream::response_stream(int size) noexcept 
-	{
-		_buffer.reserve(size);
-	}
-	
 	response_stream::response_stream() {
 		_buffer.reserve(16383);
 	}
@@ -269,31 +264,8 @@ namespace http
 		return *this;
 	}
 
-	response_stream& response_stream::operator <<(const char* data) {
-		_buffer.append(data);
-		return *this;
-	}
-
-	response_stream& response_stream::operator <<(size_t data) {
-		_buffer.append(std::to_string(data));
-		return *this;
-	}
-
-	std::string_view response_stream::view() const noexcept {
-		return std::string_view(_buffer);
-	}
-	
 	size_t response_stream::size() const noexcept {
 		return _buffer.size();
-	}
-	
-	const char* response_stream::c_str() const noexcept {
-		return _buffer.c_str();
-	}
-	
-	void response_stream::append(const char* data, size_t len) noexcept
-	{
-		_buffer.append(data, len);
 	}
 	
 	const char* response_stream::data() const noexcept {
@@ -309,9 +281,9 @@ namespace http
 
 	bool response_stream::write(int fd) noexcept 
 	{
-		const char* buf = data();
+		const char* buf = _buffer.c_str();
 		buf += _pos1;
-		const char* end = data() + size();
+		const char* end = _buffer.c_str() + _buffer.size();
 		ssize_t count = send(fd, buf, end - buf, MSG_NOSIGNAL);
 		if (count > 0) {
 			buf += count;

@@ -31,15 +31,15 @@ namespace
 	}
 }
 
-namespace env 
+namespace env
 {
 	std::string get_str(const std::string& name) noexcept
 	{
 		if (const char* env_p = std::getenv(name.c_str()))
 			return std::string(env_p);
-		else {
+		else 
 			return "";
-		}
+		
 	}
 
 	unsigned short int port() noexcept 

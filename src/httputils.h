@@ -205,18 +205,13 @@ namespace http
 
 	struct response_stream {
 	  public:	
-		explicit response_stream(int size) noexcept;
 		response_stream();
 		response_stream& operator <<(std::string_view data);
-		response_stream& operator <<(const char* data);
-		response_stream& operator <<(size_t data);
 		void set_body(std::string_view body, std::string_view content_type = "application/json");
 		void set_content_disposition(std::string_view disposition);
 		void set_origin(std::string_view origin);
 		std::string_view view() const noexcept;
 		size_t size() const noexcept;
-		const char* c_str() const noexcept;
-		void append(const char* data, size_t len) noexcept;
 		const char* data() const noexcept;
 		void clear() noexcept;
 		bool write(int fd) noexcept; 

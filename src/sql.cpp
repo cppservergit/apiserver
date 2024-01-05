@@ -132,7 +132,6 @@ namespace
 
 namespace sql 
 {
-	//executes a query that doesn't return rows (data modification query)
 	void exec_sql(const std::string& dbname, const std::string& sql)
 	{
 		return db_exec<void>(dbname, sql, [](PGresult *res) {
@@ -141,10 +140,9 @@ namespace sql
 		});
 	}
 	
-	//returns true if the query retuned 1+ row
 	bool has_rows(const std::string& dbname, const std::string &sql)
 	{
-		return db_exec<bool>(dbname, sql, [](PGresult *res){
+		return db_exec<bool>(dbname, sql, [](PGresult *res) {
 				bool result {true};
 				if (PQntuples(res) == 0)
 					result = false;
@@ -153,7 +151,6 @@ namespace sql
 		});
 	}	
 	
-	//returns only the first rows of a resultset, use of "limit 1" or "where col=pk" in the query is recommended
 	std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>> get_record(const std::string& dbname, const std::string& sql)
 	{
 		return db_exec<std::unordered_map<std::string, std::string, util::string_hash, std::equal_to<>>>(dbname, sql, [](PGresult *res){
@@ -170,7 +167,6 @@ namespace sql
 		});
 	}
 
-	//executes SQL that returns a single row with a single column containing a JSON response when data is available
 	std::string get_json_response(const std::string& dbname, const std::string &sql)
 	{
 		return db_exec<std::string>(dbname, sql, [](PGresult *res) {
