@@ -607,11 +607,12 @@ struct server
 					const std::string login_ok {std::format(json, lr.get_display_name(), token)};
 					req.response.set_body(login_ok);
 					if (env::login_log_enabled())
-						logger::log("security", "info", std::format("login OK - user: {} IP: {} token: {} roles: {}", login, req.remote_ip, token, lr.get_roles()));
+						logger::log("security", "info", 
+							std::format("login OK - user: {} IP: {} token: {} roles: {}", login, req.remote_ip, token, lr.get_roles()));
 				} else {
 					logger::log("security", "warn", std::format("login failed - user: {} IP: {}", login, req.remote_ip));
-					const std::string invalid_login = R"({"status":"INVALID","validation":{"id":"login","description":"err.invalidcredentials"}})";
-					req.response.set_body(invalid_login);
+					constexpr auto json = R"({{"status":"INVALID","validation":{{"id":"login","code":"{}","description":"{}"}}}})";
+					req.response.set_body(std::format(json, lr.get_error_code(), lr.get_error_description()));
 				}
 			},
 			false /* no security */
