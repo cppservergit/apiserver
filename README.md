@@ -887,20 +887,20 @@ The example above was tailored to the case of blob uploads, where files are stor
 
 ## Demo App
 
-There is a complete Demo case, frontend and backend, you should download both in order to play with it:
+There is a complete Demo case, frontend, and backend, you should download both to play with it:
 
 * [Demo Web Responsive App](https://cppserver.com/files/apiserver/demo.zip)
-* [main.cpp](https://cppserver.com/files/apiserver/main.cpp)
+* [main.cpp](https://cppserver.com/files/apiserver/main-pgsql.cpp)
 
 Instructions:
 
-1) Backend: download main.cpp into /apiserver/src and recompile with `make`. From the directory /apiserver, make sure the server is not running and then execute:
+1) Backend: download main.cpp into /apiserver/src and recompile with `make`. CD to the directory `/apiserver`, make sure the server is not running and then execute:
 ```
-curl https://cppserver.com/files/apiserver/main.cpp -o src/main.cpp
+curl https://cppserver.com/files/apiserver/main-pgsql.cpp -o src/main.cpp
 make
 ```
 
-2) Frontend: unzip demo.zip, the Demo HTML5 WebApp, edit /demo/js/frontend.js to point the _SERVER_ variable to your API-Server++ and double-click on index.html, log in with user mcordova/basica and play with it. This is a responsive webapp with several cool features. You don't need a web server to access this static website, the browser can use it straight from the filesystem.
+2) Frontend: unzip demo.zip, the Demo HTML5 WebApp, edit /www/js/utils.js to point the _SERVER_ variable to your API-Server++ and double-click on index.html, log in with user mcordova/basica and play with it. This is a responsive webapp with several cool features. You don't need a web server to access this static website, the browser can use it straight from the filesystem.
 
 ![ui](https://github.com/cppservergit/apiserver/assets/126841556/36b7910d-937e-45d1-a4b4-f5748a90cbb0)
 
